@@ -47,8 +47,11 @@ def test_render_frame_mode_card(tmp_path):
         date="2026-05-12", episode=1, mode="card", card_index=1,
     )
     html = out.read_text(encoding="utf-8")
-    assert "B" in html  # second card
-    assert "A" not in html.split("</h2>")[0]  # first card not in first h2
+    # Frame must render the SECOND card (rank-2 "B"), not the first
+    assert "<h2>B</h2>" in html
+    assert "<h2>A</h2>" not in html
+    assert 'id="card-2"' in html
+    assert 'id="card-1"' not in html
 
 
 def test_render_frame_intro_outro(tmp_path):
