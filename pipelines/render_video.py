@@ -4,9 +4,12 @@ import json
 import re
 import subprocess
 from pathlib import Path
+import structlog
 from playwright.async_api import async_playwright
 from core.tts import MiniMaxTTS
 from pipelines.render_html import render_frame
+
+_log = structlog.get_logger(__name__)
 
 
 async def screenshot_html(html_path: Path, png_path: Path,
@@ -219,13 +222,17 @@ async def run(
             await screenshot_html(card_html, png)
             frame_paths[sid] = png
 
-    # 2. TTS each segment
+    # 2. TTS each segment (skip failures per spec §7)
     tts = MiniMaxTTS(api_key=tts_api_key, group_id=tts_group_id, voice_id=tts_voice_id)
     enriched: list[dict] = []
     for seg in segments:
         sid = seg["id"]
         mp3 = audio_dir / f"{sid}.mp3"
-        dur = tts.synthesize(seg["text"], mp3)
+        try:
+            dur = tts.synthesize(seg["text"], mp3)
+        except Exception as exc:
+            _log.warning("tts.segment_failed", segment_id=sid, error=repr(exc))
+            continue
         enriched.append({
             "id": sid,
             "text": seg["text"],
@@ -233,6 +240,8 @@ async def run(
             "frame": frame_paths[sid],
             "audio": mp3,
         })
+    if not enriched:
+        raise RuntimeError("no segments produced audio; cannot assemble video")
 
     # 3. Build SRT
     srt_path = day_dir / "subs.srt"
