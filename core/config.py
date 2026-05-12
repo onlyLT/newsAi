@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     minimax_api_key: str
     minimax_group_id: str
     minimax_voice_id: str
+    llm_model: str = "deepseek-v4-flash"
 
     project_root: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent)
     timezone: str = "Asia/Shanghai"

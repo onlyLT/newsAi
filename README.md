@@ -10,6 +10,16 @@ Daily auto-generated AI investment news podcast (video + HTML digest).
 5. Copy `.env.example` to `.env` and fill in keys
 6. `python run_daily.py` to generate today's episode
 
+## LLM provider
+
+The pipeline uses DeepSeek V4 Flash by default (cheaper, ~10x less per run than Claude Opus). To switch to Anthropic Claude:
+
+1. Comment out `ANTHROPIC_BASE_URL` in `.env`
+2. Set `LLM_MODEL=claude-opus-4-7` (or any current Claude model)
+3. Put your Anthropic API key in `ANTHROPIC_API_KEY`
+
+The `anthropic` Python SDK is provider-agnostic when given the right base URL; no code changes needed.
+
 ## Architecture
 See `docs/specs/2026-05-12-ai-news-podcast-design.md`.
 

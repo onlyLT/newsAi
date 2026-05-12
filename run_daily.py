@@ -65,6 +65,7 @@ def main(argv: list[str] | None = None) -> int:
             recent_curated_paths=_recent_curated_paths(settings, date),
             api_key=settings.anthropic_api_key,
             prompts_dir=settings.prompts_dir,
+            llm_model=settings.llm_model,
         )
         logger.info("stage.start", stage="script")
         script_run(
@@ -73,6 +74,7 @@ def main(argv: list[str] | None = None) -> int:
             segments_path=d / "segments.json",
             api_key=settings.anthropic_api_key,
             prompts_dir=settings.prompts_dir,
+            llm_model=settings.llm_model,
         )
         logger.info("stage.start", stage="render_html")
         html_render(
