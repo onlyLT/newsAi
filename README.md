@@ -33,3 +33,24 @@ See `docs/specs/2026-05-12-ai-news-podcast-design.md`.
 - `subs.srt` — burned-in subtitles
 - `video.mp4` — final 1080p video
 - `run.log` — structured log
+
+## Schedule (Windows)
+
+To run automatically every day at 07:00 local:
+
+```powershell
+# In an elevated PowerShell from the project root:
+.\scripts\install_schedule.ps1
+```
+
+To verify:
+```powershell
+Get-ScheduledTask -TaskName "newsAi-daily" | Get-ScheduledTaskInfo
+```
+
+To remove:
+```powershell
+Unregister-ScheduledTask -TaskName "newsAi-daily" -Confirm:$false
+```
+
+If a run fails, a Windows toast notification appears, and details are in `dist/YYYY-MM-DD/run.log`.
