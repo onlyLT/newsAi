@@ -1,0 +1,67 @@
+sources:
+  - id: jiqizhixin
+    name: 机器之心
+    type: rss
+    url: https://www.jiqizhixin.com/rss
+    lang: zh
+
+  - id: qbitai
+    name: 量子位
+    type: rss
+    url: https://www.qbitai.com/feed
+    lang: zh
+
+  - id: xinzhiyuan
+    name: 新智元
+    type: rss
+    url: https://rsshub.app/wechat/ai-era
+    lang: zh
+
+  - id: kr36_ai
+    name: 36氪
+    type: rss
+    url: https://36kr.com/feed-newsflash
+    lang: zh
+    filter_keywords: [AI, 大模型, 算力, 英伟达, OpenAI, GPU, 人工智能]
+
+  - id: techcrunch_ai
+    name: TechCrunch AI
+    type: rss
+    url: https://techcrunch.com/category/artificial-intelligence/feed/
+    lang: en
+
+  - id: theverge_ai
+    name: The Verge AI
+    type: rss
+    url: https://www.theverge.com/rss/ai-artificial-intelligence/index.xml
+    lang: en
+
+  - id: openai_blog
+    name: OpenAI Blog
+    type: rss
+    url: https://openai.com/blog/rss.xml
+    lang: en
+
+  - id: anthropic_news
+    name: Anthropic News
+    type: rss
+    url: https://www.anthropic.com/news/rss.xml
+    lang: en
+
+  - id: google_ai_blog
+    name: Google AI Blog
+    type: rss
+    url: https://blog.google/technology/ai/rss/
+    lang: en
+
+  - id: nvidia_blog
+    name: NVIDIA Blog
+    type: rss
+    url: https://blogs.nvidia.com/feed/
+    lang: en
+
+  - id: hn_ai
+    name: Hacker News (AI)
+    type: rss
+    url: https://hnrss.org/newest?q=AI+OR+LLM+OR+OpenAI
+    lang: en

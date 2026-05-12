@@ -1,0 +1,12 @@
+sources:
+  - id: test_zh
+    name: Test ZH
+    type: rss
+    url: https://example.com/zh.xml
+    lang: zh
+  - id: test_en
+    name: Test EN
+    type: rss
+    url: https://example.com/en.xml
+    lang: en
+    filter_keywords: [AI, LLM]
