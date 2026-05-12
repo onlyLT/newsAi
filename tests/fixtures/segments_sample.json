@@ -1,0 +1,6 @@
+[
+  {"id": "intro", "text": "各位早，今天是 5 月 12 日。", "duration_hint_s": 10},
+  {"id": "item-1", "text": "第一条：英伟达发布新一代 GPU。", "duration_hint_s": 22, "card_ref": "card-1"},
+  {"id": "item-2", "text": "第二条：Anthropic 完成新一轮融资。", "duration_hint_s": 22, "card_ref": "card-2"},
+  {"id": "outro", "text": "以上是今日 AI 投资晨读。", "duration_hint_s": 10}
+]
