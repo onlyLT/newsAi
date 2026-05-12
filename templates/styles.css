@@ -70,3 +70,79 @@ html, body {
 
 .frame-intro h1, .frame-outro h1 { font-size: 120px; }
 .frame-intro .sub, .frame-outro .sub { font-size: 40px; color: var(--muted); margin-top: 24px; }
+
+/* TOC frame (table of contents shown after intro) */
+.frame-toc {
+  width: 1920px;
+  height: 1080px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 80px;
+}
+.frame-toc .toc-inner {
+  width: 1500px;
+  max-width: 100%;
+}
+.frame-toc h2 {
+  font-size: 64px;
+  font-weight: 700;
+  margin-bottom: 40px;
+  color: var(--accent);
+  text-align: center;
+}
+.frame-toc .toc-list {
+  list-style: none;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 60px;
+  row-gap: 18px;
+  font-size: 30px;
+  line-height: 1.4;
+}
+.frame-toc .toc-list li {
+  display: flex;
+  gap: 16px;
+  align-items: baseline;
+}
+.frame-toc .toc-rank {
+  color: var(--accent);
+  font-weight: 700;
+  min-width: 50px;
+}
+.frame-toc .toc-title {
+  color: var(--fg);
+}
+
+/* Progress bar at bottom of card frame */
+.frame-card { position: relative; }
+.frame-card .progress {
+  position: absolute;
+  bottom: 40px;
+  left: 80px;
+  right: 80px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+.frame-card .progress-bar {
+  flex: 1;
+  height: 6px;
+  background: var(--card-border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.frame-card .progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: none;
+}
+.frame-card .progress-text {
+  color: var(--muted);
+  font-size: 22px;
+  font-weight: 600;
+  font-feature-settings: "tnum";
+  min-width: 80px;
+  text-align: right;
+}

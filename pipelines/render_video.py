@@ -208,10 +208,19 @@ async def run(
     frame_paths["outro"] = frames_dir / "outro.png"
     await screenshot_html(outro_html, frame_paths["outro"])
 
-    # Map item-N segments to card index N-1
+    # Map toc and item-N segments to rendered frames
     for seg in segments:
         sid = seg["id"]
-        if sid.startswith("item-"):
+        if sid == "toc":
+            toc_html = render_frame(
+                curated_path=curated_path, out_dir=frames_dir,
+                templates_dir=templates_dir,
+                date=date, episode=episode, mode="toc",
+            )
+            png = frames_dir / "toc.png"
+            await screenshot_html(toc_html, png)
+            frame_paths[sid] = png
+        elif sid.startswith("item-"):
             n = int(sid.split("-")[1])
             card_html = render_frame(
                 curated_path=curated_path, out_dir=frames_dir,

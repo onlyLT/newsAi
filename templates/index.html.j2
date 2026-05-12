@@ -20,10 +20,25 @@
       <div class="sub">点赞 · 关注 · 转发</div>
     </div>
   </div>
+{% elif mode == "toc" %}
+  <div class="frame-toc">
+    <div class="toc-inner">
+      <h2>今日 10 条 · AI 投资晨读</h2>
+      <ol class="toc-list">
+        {% for item in items %}
+          <li><span class="toc-rank">{{ "%02d"|format(item.rank) }}</span><span class="toc-title">{{ item.title }}</span></li>
+        {% endfor %}
+      </ol>
+    </div>
+  </div>
 {% elif mode == "card" %}
   {% set item = items[card_index] %}
   <div class="frame-card">
     {% include "_card.html.j2" %}
+    <div class="progress">
+      <div class="progress-bar"><div class="progress-fill" style="width: {{ (item.rank / items|length * 100)|round(0, 'floor') }}%"></div></div>
+      <div class="progress-text">{{ item.rank }} / {{ items|length }}</div>
+    </div>
   </div>
 {% else %}
   <div class="page-list">
