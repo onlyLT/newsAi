@@ -10,8 +10,8 @@ class Settings(BaseSettings):
 
     anthropic_api_key: str
     minimax_api_key: str
-    minimax_group_id: str
-    minimax_voice_id: str
+    minimax_group_id: str = ""
+    minimax_voice_id: str = "Podcast_girl"
     llm_model: str = "deepseek-v4-flash"
 
     project_root: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent)
