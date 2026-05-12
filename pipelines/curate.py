@@ -1,9 +1,12 @@
 import argparse
 import json
 from pathlib import Path
+import structlog
 from pydantic import ValidationError
 from core.models import CuratedItem
 from core.llm import LLMClient, LLMJsonError
+
+_log = structlog.get_logger(__name__)
 
 
 def _load_prompt(prompts_dir: Path, name: str) -> str:
@@ -13,11 +16,7 @@ def _load_prompt(prompts_dir: Path, name: str) -> str:
 def _validate_curated(payload) -> list[CuratedItem]:
     if not isinstance(payload, list):
         raise ValueError("curated payload must be a JSON array")
-    items = [CuratedItem.model_validate(it) for it in payload]
-    if not (9 <= len(items) <= 11):
-        # allow soft 2 in dev; production should be strict, but failure is fine here
-        pass
-    return items
+    return [CuratedItem.model_validate(it) for it in payload]
 
 
 def run(
@@ -57,6 +56,7 @@ def run(
             break
         except (ValidationError, ValueError, LLMJsonError) as e:
             last_err = e
+            _log.warning("curate.attempt_failed", attempt=attempt + 1, error=repr(e))
             continue
     else:
         raise RuntimeError(f"curate failed after 2 attempts: {last_err}")
