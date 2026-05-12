@@ -3,6 +3,7 @@ import shutil
 import subprocess
 from pathlib import Path
 import pytest
+from unittest.mock import patch, MagicMock
 from pipelines.render_video import screenshot_html, build_srt, assemble_video
 
 
@@ -84,3 +85,56 @@ def test_assemble_video_produces_mp4(tmp_path):
     asyncio.run(assemble_video(segments=segments, srt_path=srt, out_path=out, bgm_path=None))
     assert out.exists()
     assert out.stat().st_size > 1000
+
+
+@pytest.mark.skipif(not _has_ffmpeg(), reason="ffmpeg not on PATH")
+def test_render_video_run_end_to_end(tmp_path, monkeypatch):
+    """Run with mocked TTS + real Playwright + real ffmpeg."""
+    import json, asyncio, shutil
+    # Layout: copy templates to tmp
+    repo = Path(__file__).parent.parent
+    (tmp_path / "templates").mkdir()
+    for f in ["index.html.j2", "_card.html.j2", "styles.css"]:
+        shutil.copyfile(repo / "templates" / f, tmp_path / "templates" / f)
+    # curated.json fixture (2 items for speed)
+    curated = [
+        {"rank": 1, "title": "A", "tldr": "测试一", "details": "细节",
+         "impact": {"tickers": ["NVDA"], "sectors": [], "direction": "bullish", "reasoning": "r"},
+         "source_url": "u", "source_name": "n"},
+        {"rank": 2, "title": "B", "tldr": "测试二", "details": "细节",
+         "impact": {"tickers": ["TSM"], "sectors": [], "direction": "bearish", "reasoning": "r"},
+         "source_url": "u", "source_name": "n"},
+    ]
+    day = tmp_path / "dist" / "2026-05-12"
+    day.mkdir(parents=True)
+    (day / "curated.json").write_text(json.dumps(curated, ensure_ascii=False), encoding="utf-8")
+    segs = [
+        {"id": "intro", "text": "开场", "duration_hint_s": 2},
+        {"id": "item-1", "text": "第一条", "duration_hint_s": 2, "card_ref": "card-1"},
+        {"id": "item-2", "text": "第二条", "duration_hint_s": 2, "card_ref": "card-2"},
+        {"id": "outro", "text": "拜拜", "duration_hint_s": 2},
+    ]
+    (day / "segments.json").write_text(json.dumps(segs, ensure_ascii=False), encoding="utf-8")
+
+    # Mock TTS: each call writes a 1s silent mp3 and returns 1.0
+    def fake_synth(text, out_path, **kw):
+        subprocess.run(
+            ["ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=cl=mono:r=32000",
+             "-t", "1", str(out_path)], check=True, capture_output=True,
+        )
+        return 1.0
+
+    fake_tts = MagicMock()
+    fake_tts.synthesize.side_effect = fake_synth
+
+    from pipelines.render_video import run as run_video
+    with patch("pipelines.render_video.MiniMaxTTS", return_value=fake_tts):
+        asyncio.run(run_video(
+            day_dir=day,
+            templates_dir=tmp_path / "templates",
+            tts_api_key="k", tts_group_id="g", tts_voice_id="v",
+            bgm_path=None,
+            date="2026-05-12", episode=1,
+        ))
+    assert (day / "video.mp4").exists()
+    assert (day / "video.mp4").stat().st_size > 5000

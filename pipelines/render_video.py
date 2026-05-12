@@ -1,8 +1,12 @@
+import argparse
 import asyncio
+import json
 import re
 import subprocess
 from pathlib import Path
 from playwright.async_api import async_playwright
+from core.tts import MiniMaxTTS
+from pipelines.render_html import render_frame
 
 
 async def screenshot_html(html_path: Path, png_path: Path,
@@ -163,3 +167,109 @@ async def assemble_video(
         burned.replace(out_path)
 
     return out_path
+
+
+async def run(
+    *,
+    day_dir: Path,
+    templates_dir: Path,
+    tts_api_key: str,
+    tts_group_id: str,
+    tts_voice_id: str,
+    bgm_path: Path | None,
+    date: str,
+    episode: int,
+) -> Path:
+    curated_path = day_dir / "curated.json"
+    segments_path = day_dir / "segments.json"
+    frames_dir = day_dir / "frames"
+    audio_dir = day_dir / "audio"
+    frames_dir.mkdir(parents=True, exist_ok=True)
+    audio_dir.mkdir(parents=True, exist_ok=True)
+
+    segments = json.loads(segments_path.read_text(encoding="utf-8"))
+
+    # 1. Render frames
+    frame_paths: dict[str, Path] = {}
+    intro_html = render_frame(
+        curated_path=curated_path, out_dir=frames_dir, templates_dir=templates_dir,
+        date=date, episode=episode, mode="intro",
+    )
+    frame_paths["intro"] = frames_dir / "intro.png"
+    await screenshot_html(intro_html, frame_paths["intro"])
+
+    outro_html = render_frame(
+        curated_path=curated_path, out_dir=frames_dir, templates_dir=templates_dir,
+        date=date, episode=episode, mode="outro",
+    )
+    frame_paths["outro"] = frames_dir / "outro.png"
+    await screenshot_html(outro_html, frame_paths["outro"])
+
+    # Map item-N segments to card index N-1
+    for seg in segments:
+        sid = seg["id"]
+        if sid.startswith("item-"):
+            n = int(sid.split("-")[1])
+            card_html = render_frame(
+                curated_path=curated_path, out_dir=frames_dir,
+                templates_dir=templates_dir,
+                date=date, episode=episode, mode="card", card_index=n - 1,
+            )
+            png = frames_dir / f"card_{n:02d}.png"
+            await screenshot_html(card_html, png)
+            frame_paths[sid] = png
+
+    # 2. TTS each segment
+    tts = MiniMaxTTS(api_key=tts_api_key, group_id=tts_group_id, voice_id=tts_voice_id)
+    enriched: list[dict] = []
+    for seg in segments:
+        sid = seg["id"]
+        mp3 = audio_dir / f"{sid}.mp3"
+        dur = tts.synthesize(seg["text"], mp3)
+        enriched.append({
+            "id": sid,
+            "text": seg["text"],
+            "duration_s": dur,
+            "frame": frame_paths[sid],
+            "audio": mp3,
+        })
+
+    # 3. Build SRT
+    srt_path = day_dir / "subs.srt"
+    srt_path.write_text(build_srt(enriched), encoding="utf-8")
+
+    # 4. Assemble video
+    out_mp4 = day_dir / "video.mp4"
+    await assemble_video(
+        segments=enriched,
+        srt_path=srt_path,
+        out_path=out_mp4,
+        bgm_path=bgm_path,
+    )
+    return out_mp4
+
+
+def main():
+    from core.config import Settings, day_dir as get_day_dir, today_str
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--date", default=None)
+    parser.add_argument("--episode", type=int, default=1)
+    args = parser.parse_args()
+    settings = Settings()
+    date = args.date or today_str(settings.timezone)
+    d = get_day_dir(settings, date)
+    bgm = settings.assets_dir / "bgm.mp3"
+    asyncio.run(run(
+        day_dir=d,
+        templates_dir=settings.templates_dir,
+        tts_api_key=settings.minimax_api_key,
+        tts_group_id=settings.minimax_group_id,
+        tts_voice_id=settings.minimax_voice_id,
+        bgm_path=bgm if bgm.exists() else None,
+        date=date, episode=args.episode,
+    ))
+    print(f"wrote {d / 'video.mp4'}")
+
+
+if __name__ == "__main__":
+    main()
