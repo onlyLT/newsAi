@@ -4,8 +4,11 @@ from pathlib import Path
 
 import feedparser
 import httpx
+import structlog
 import yaml
 from dateutil import parser as dtparser
+
+_log = structlog.get_logger(__name__)
 
 from core.models import RawArticle, SourceConfig
 
@@ -44,7 +47,8 @@ async def fetch_source(client: httpx.AsyncClient, src: SourceConfig) -> list[Raw
     try:
         resp = await client.get(src.url, timeout=20.0, follow_redirects=True)
         resp.raise_for_status()
-    except (httpx.HTTPError, httpx.TimeoutException):
+    except httpx.HTTPError as exc:
+        _log.warning("ingest.fetch_failed", source_id=src.id, url=src.url, error=repr(exc))
         return []
     feed = feedparser.parse(resp.text)
     articles: list[RawArticle] = []
