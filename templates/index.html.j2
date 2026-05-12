@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <title>{{ date }} · AI 投资晨读</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+{% if mode == "intro" %}
+  <div class="frame-intro">
+    <div style="text-align:center">
+      <h1>AI 投资晨读</h1>
+      <div class="sub">{{ date }} · 第 {{ episode }} 期</div>
+    </div>
+  </div>
+{% elif mode == "outro" %}
+  <div class="frame-outro">
+    <div style="text-align:center">
+      <h1>明天见</h1>
+      <div class="sub">点赞 · 关注 · 转发</div>
+    </div>
+  </div>
+{% elif mode == "card" %}
+  {% set item = items[card_index] %}
+  <div class="frame-card">
+    {% include "_card.html.j2" %}
+  </div>
+{% else %}
+  <div class="page-list">
+    <header>
+      <h1>AI 投资晨读</h1>
+      <div class="meta">{{ date }} · 第 {{ episode }} 期 · 共 {{ items|length }} 条</div>
+    </header>
+    {% for item in items %}
+      {% include "_card.html.j2" %}
+    {% endfor %}
+  </div>
+{% endif %}
+</body>
+</html>
