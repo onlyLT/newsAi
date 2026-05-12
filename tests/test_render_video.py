@@ -1,7 +1,9 @@
 import asyncio
+import shutil
+import subprocess
 from pathlib import Path
 import pytest
-from pipelines.render_video import screenshot_html, build_srt
+from pipelines.render_video import screenshot_html, build_srt, assemble_video
 
 
 def test_screenshot_html_produces_png(tmp_path):
@@ -40,3 +42,45 @@ def test_build_srt_splits_long_text_into_chunks():
     # should produce multiple cues
     cues = [b for b in srt.split("\n\n") if b.strip()]
     assert len(cues) > 1
+
+
+def _has_ffmpeg() -> bool:
+    return shutil.which("ffmpeg") is not None
+
+
+@pytest.mark.skipif(not _has_ffmpeg(), reason="ffmpeg not on PATH")
+def test_assemble_video_produces_mp4(tmp_path):
+    import asyncio
+    # 2 simple frames + 2 tiny silent mp3s (generated with ffmpeg directly)
+    frame1 = tmp_path / "f1.png"
+    frame2 = tmp_path / "f2.png"
+    a1 = tmp_path / "a1.mp3"
+    a2 = tmp_path / "a2.mp3"
+    srt = tmp_path / "subs.srt"
+    out = tmp_path / "video.mp4"
+
+    # Create solid color PNGs via ffmpeg
+    for f, color in [(frame1, "red"), (frame2, "blue")]:
+        subprocess.run(
+            ["ffmpeg", "-y", "-f", "lavfi", "-i", f"color=c={color}:s=1920x1080:d=0.1",
+             "-frames:v", "1", str(f)], check=True, capture_output=True,
+        )
+    # Create 1s silent mp3
+    for a in [a1, a2]:
+        subprocess.run(
+            ["ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=cl=mono:r=32000",
+             "-t", "1", str(a)], check=True, capture_output=True,
+        )
+    srt.write_text(
+        "1\n00:00:00,000 --> 00:00:01,000\nhello\n\n"
+        "2\n00:00:01,000 --> 00:00:02,000\nworld\n",
+        encoding="utf-8",
+    )
+
+    segments = [
+        {"frame": frame1, "audio": a1, "duration_s": 1.0},
+        {"frame": frame2, "audio": a2, "duration_s": 1.0},
+    ]
+    asyncio.run(assemble_video(segments=segments, srt_path=srt, out_path=out, bgm_path=None))
+    assert out.exists()
+    assert out.stat().st_size > 1000
