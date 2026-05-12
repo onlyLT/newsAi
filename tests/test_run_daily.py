@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch, AsyncMock
 import pytest
@@ -76,3 +77,30 @@ def test_run_daily_returns_nonzero_on_failure(monkeypatch, tmp_path):
     note.assert_called()
     # Should notify with success=False
     assert note.call_args.kwargs.get("success") is False
+
+
+@pytest.mark.skipif(os.getenv("RUN_LIVE") != "1", reason="live smoke; set RUN_LIVE=1")
+def test_smoke_full_pipeline_live(monkeypatch, tmp_path):
+    """
+    End-to-end against real Claude + MiniMax + local ffmpeg + Playwright.
+    Costs ~¥2-3.
+    Requires .env in repo root with real keys.
+    """
+    import shutil
+    repo = Path(__file__).parent.parent
+    # Copy real templates/prompts/sources into the test root
+    for sub in ["templates", "prompts", "sources", "assets"]:
+        if (repo / sub).exists():
+            shutil.copytree(repo / sub, tmp_path / sub, dirs_exist_ok=True)
+    monkeypatch.setenv("PROJECT_ROOT", str(tmp_path))
+    # Real keys must come from .env
+    rc = run_main(["--date", "2026-05-12"])
+    assert rc == 0
+    day = tmp_path / "dist" / "2026-05-12"
+    assert (day / "raw.json").exists()
+    assert (day / "curated.json").exists()
+    assert (day / "script.md").exists()
+    assert (day / "segments.json").exists()
+    assert (day / "index.html").exists()
+    assert (day / "video.mp4").exists()
+    assert (day / "video.mp4").stat().st_size > 100_000

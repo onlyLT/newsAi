@@ -12,3 +12,24 @@ Daily auto-generated AI investment news podcast (video + HTML digest).
 
 ## Architecture
 See `docs/specs/2026-05-12-ai-news-podcast-design.md`.
+
+## Running
+
+- Once per day: `python run_daily.py`
+- Specific date: `python run_daily.py --date 2026-05-12`
+- Re-run single stage: `python -m pipelines.curate --date 2026-05-12`
+- Live smoke (costs ~¥3): `$env:RUN_LIVE="1"; pytest tests/test_run_daily.py::test_smoke_full_pipeline_live -v -s`
+
+## Outputs (per day)
+
+`dist/YYYY-MM-DD/`:
+- `raw.json` — all fetched articles
+- `curated.json` — top 10 with investment analysis
+- `script.md` — readable script
+- `segments.json` — TTS-ready segments
+- `index.html` + `styles.css` — daily digest page
+- `audio/*.mp3` — per-segment TTS
+- `frames/*.png` — per-segment video frames
+- `subs.srt` — burned-in subtitles
+- `video.mp4` — final 1080p video
+- `run.log` — structured log
