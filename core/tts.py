@@ -17,10 +17,13 @@ class MiniMaxTTS:
         self.throttle_s = throttle_s
 
     def synthesize(self, text: str, out_path: Path,
-                   speed: float = 1.0, vol: float = 1.0, pitch: float = 0.0) -> float:
+                   speed: float = 1.0, vol: int = 1, pitch: int = 0) -> float:
         """Synthesize `text` to `out_path` (mp3). Returns duration in seconds.
 
         Throttles before the HTTP call to stay under MiniMax's RPM limit.
+
+        MiniMax t2a_v2 strictly requires int for `vol` and `pitch`; `speed`
+        accepts float (range 0.5-2.0).
         """
         if self.throttle_s > 0:
             time.sleep(self.throttle_s)
@@ -30,8 +33,8 @@ class MiniMaxTTS:
             "voice_setting": {
                 "voice_id": self.voice_id,
                 "speed": speed,
-                "vol": vol,
-                "pitch": pitch,
+                "vol": int(vol),
+                "pitch": int(pitch),
             },
             "audio_setting": {
                 "sample_rate": 32000,

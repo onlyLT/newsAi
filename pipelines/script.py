@@ -37,12 +37,13 @@ def run(
     api_key: str,
     prompts_dir: Path,
     llm_model: str = "deepseek-v4-flash",
+    llm_base_url: str | None = None,
 ) -> tuple[Path, Path]:
     system = _load_prompt(prompts_dir, "script.system.md")
     curated_text = curated_path.read_text(encoding="utf-8")
     user_prompt = f"# 当日 curated\n```json\n{curated_text}\n```"
 
-    llm = LLMClient(api_key=api_key, model=llm_model)
+    llm = LLMClient(api_key=api_key, model=llm_model, base_url=llm_base_url)
     last_err: Exception | None = None
     for attempt in range(2):
         try:
@@ -86,6 +87,7 @@ def main():
         api_key=settings.anthropic_api_key,
         prompts_dir=settings.prompts_dir,
         llm_model=settings.llm_model,
+        llm_base_url=settings.anthropic_base_url,
     )
     print(f"wrote {sm} and {sp}")
 

@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     anthropic_api_key: str
+    anthropic_base_url: str | None = None
     minimax_api_key: str
     minimax_group_id: str = ""
     minimax_voice_id: str = "Podcast_girl"

@@ -66,6 +66,7 @@ def main(argv: list[str] | None = None) -> int:
             api_key=settings.anthropic_api_key,
             prompts_dir=settings.prompts_dir,
             llm_model=settings.llm_model,
+            llm_base_url=settings.anthropic_base_url,
         )
         logger.info("stage.start", stage="script")
         script_run(
@@ -75,6 +76,7 @@ def main(argv: list[str] | None = None) -> int:
             api_key=settings.anthropic_api_key,
             prompts_dir=settings.prompts_dir,
             llm_model=settings.llm_model,
+            llm_base_url=settings.anthropic_base_url,
         )
         logger.info("stage.start", stage="render_html")
         html_render(

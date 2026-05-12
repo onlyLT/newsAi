@@ -27,6 +27,7 @@ def run(
     api_key: str,
     prompts_dir: Path,
     llm_model: str = "deepseek-v4-flash",
+    llm_base_url: str | None = None,
 ) -> Path:
     system = _load_prompt(prompts_dir, "curate.system.md")
     raw_text = raw_path.read_text(encoding="utf-8")
@@ -41,7 +42,7 @@ def run(
 
     user_prompt = f"# 当日候选新闻全量\n```json\n{raw_text}\n```"
 
-    llm = LLMClient(api_key=api_key, model=llm_model)
+    llm = LLMClient(api_key=api_key, model=llm_model, base_url=llm_base_url)
 
     last_err: Exception | None = None
     for attempt in range(2):
@@ -98,6 +99,7 @@ def main():
         api_key=settings.anthropic_api_key,
         prompts_dir=settings.prompts_dir,
         llm_model=settings.llm_model,
+        llm_base_url=settings.anthropic_base_url,
     )
     print(f"wrote {out}")
 

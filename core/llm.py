@@ -37,8 +37,12 @@ def _extract_json(text: str):
 class LLMClient:
     """Thin wrapper around Anthropic SDK with prompt caching and JSON extraction."""
 
-    def __init__(self, api_key: str, model: str = "deepseek-v4-flash"):
-        self.client = Anthropic(api_key=api_key)
+    def __init__(self, api_key: str, model: str = "deepseek-v4-flash",
+                 base_url: str | None = None):
+        kwargs: dict = {"api_key": api_key}
+        if base_url:
+            kwargs["base_url"] = base_url
+        self.client = Anthropic(**kwargs)
         self.model = model
 
     def complete_json(
