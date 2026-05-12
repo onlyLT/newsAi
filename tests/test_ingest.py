@@ -1,9 +1,10 @@
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from pipelines.ingest import load_sources
 
 import respx
 import httpx
-from core.models import Lang, SourceType, SourceConfig
+from core.models import Lang, RawArticle, SourceType, SourceConfig
 from pipelines.ingest import fetch_source
 
 
@@ -63,3 +64,49 @@ async def test_fetch_source_returns_empty_on_http_error():
     async with httpx.AsyncClient() as client:
         arts = await fetch_source(client, src)
     assert arts == []
+
+
+from pipelines.ingest import dedupe, recent_only
+
+
+def _make_article(idx: int, title: str, hours_ago: float = 1.0) -> RawArticle:
+    ts = datetime.now(timezone.utc) - timedelta(hours=hours_ago)
+    return RawArticle(
+        id=f"{idx:0>64x}",
+        source_id="s",
+        source_name="S",
+        title=title,
+        url=f"https://x/{idx}",
+        published_at=ts,
+        lang=Lang.EN,
+    )
+
+
+def test_dedupe_keeps_first_by_url():
+    a = _make_article(1, "OpenAI releases GPT-7")
+    b = _make_article(1, "OpenAI releases GPT-7 (duplicate)")  # same id
+    out = dedupe([a, b])
+    assert len(out) == 1
+    assert out[0].title == "OpenAI releases GPT-7"
+
+
+def test_dedupe_collapses_near_identical_titles():
+    a = _make_article(1, "OpenAI releases GPT-7 today")
+    b = _make_article(2, "OpenAI releases GPT 7 today")
+    out = dedupe([a, b])
+    assert len(out) == 1
+
+
+def test_dedupe_keeps_unrelated():
+    a = _make_article(1, "OpenAI releases GPT-7")
+    b = _make_article(2, "Apple announces new chip")
+    out = dedupe([a, b])
+    assert len(out) == 2
+
+
+def test_recent_only_filters_old():
+    a = _make_article(1, "fresh", hours_ago=2)
+    b = _make_article(2, "stale", hours_ago=30)
+    out = recent_only([a, b], max_age_hours=24)
+    assert len(out) == 1
+    assert out[0].title == "fresh"

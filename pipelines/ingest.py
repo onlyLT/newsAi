@@ -1,5 +1,5 @@
 import hashlib
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import feedparser
@@ -7,6 +7,7 @@ import httpx
 import structlog
 import yaml
 from dateutil import parser as dtparser
+from rapidfuzz import fuzz
 
 _log = structlog.get_logger(__name__)
 
@@ -73,3 +74,26 @@ async def fetch_source(client: httpx.AsyncClient, src: SourceConfig) -> list[Raw
             lang=src.lang,
         ))
     return articles
+
+
+def dedupe(articles: list[RawArticle], title_threshold: int = 85) -> list[RawArticle]:
+    seen_ids: set[str] = set()
+    kept: list[RawArticle] = []
+    for art in articles:
+        if art.id in seen_ids:
+            continue
+        # title fuzzy check
+        is_dup = False
+        for k in kept:
+            if k.lang == art.lang and fuzz.ratio(k.title, art.title) >= title_threshold:
+                is_dup = True
+                break
+        if not is_dup:
+            kept.append(art)
+            seen_ids.add(art.id)
+    return kept
+
+
+def recent_only(articles: list[RawArticle], max_age_hours: int = 24) -> list[RawArticle]:
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
+    return [a for a in articles if a.published_at >= cutoff]
