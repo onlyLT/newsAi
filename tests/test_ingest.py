@@ -110,3 +110,22 @@ def test_recent_only_filters_old():
     out = recent_only([a, b], max_age_hours=24)
     assert len(out) == 1
     assert out[0].title == "fresh"
+
+
+import json
+
+
+@respx.mock
+async def test_run_writes_raw_json(tmp_path):
+    rss_body = (FIX / "sample_rss.xml").read_text(encoding="utf-8")
+    respx.get("https://example.com/zh.xml").mock(return_value=httpx.Response(200, text=rss_body))
+    respx.get("https://example.com/en.xml").mock(return_value=httpx.Response(500))
+
+    from pipelines.ingest import run as run_ingest
+    out_path = tmp_path / "raw.json"
+    await run_ingest(FIX / "sample_sources.yaml", out_path, max_age_hours=24 * 365 * 10)
+    assert out_path.exists()
+    data = json.loads(out_path.read_text(encoding="utf-8"))
+    # zh.xml has 2 entries; en.xml failed silently
+    assert len(data) == 2
+    assert {a["source_id"] for a in data} == {"test_zh"}

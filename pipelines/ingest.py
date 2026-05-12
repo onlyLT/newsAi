@@ -1,4 +1,7 @@
+import argparse
+import asyncio
 import hashlib
+import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -97,3 +100,37 @@ def dedupe(articles: list[RawArticle], title_threshold: int = 85) -> list[RawArt
 def recent_only(articles: list[RawArticle], max_age_hours: int = 24) -> list[RawArticle]:
     cutoff = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
     return [a for a in articles if a.published_at >= cutoff]
+
+
+async def run(sources_yaml: Path, out_path: Path, max_age_hours: int = 24) -> Path:
+    sources = load_sources(sources_yaml)
+    async with httpx.AsyncClient(http2=True) as client:
+        results = await asyncio.gather(*[fetch_source(client, s) for s in sources])
+    all_articles = [a for r in results for a in r]
+    all_articles = recent_only(all_articles, max_age_hours=max_age_hours)
+    all_articles = dedupe(all_articles)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(
+        json.dumps([a.model_dump(mode="json") for a in all_articles],
+                   ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    return out_path
+
+
+def main():
+    from core.config import Settings, day_dir, today_str
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--date", default=None, help="YYYY-MM-DD; default=today")
+    parser.add_argument("--max-age-hours", type=int, default=24)
+    args = parser.parse_args()
+    settings = Settings()
+    date = args.date or today_str(settings.timezone)
+    d = day_dir(settings, date)
+    out = d / "raw.json"
+    path = asyncio.run(run(settings.sources_yaml, out, args.max_age_hours))
+    print(f"wrote {path}")
+
+
+if __name__ == "__main__":
+    main()
