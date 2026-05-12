@@ -1,0 +1,24 @@
+[
+  {
+    "id": "a000000000000000000000000000000000000000000000000000000000000001",
+    "source_id": "techcrunch_ai",
+    "source_name": "TechCrunch AI",
+    "title": "NVIDIA unveils Blackwell B200 with 30% performance jump",
+    "url": "https://example.com/1",
+    "published_at": "2026-05-12T03:00:00+00:00",
+    "summary": "NVIDIA announces next-gen GPU.",
+    "content": "",
+    "lang": "en"
+  },
+  {
+    "id": "a000000000000000000000000000000000000000000000000000000000000002",
+    "source_id": "anthropic_news",
+    "source_name": "Anthropic News",
+    "title": "Anthropic raises Series E at $200B valuation",
+    "url": "https://example.com/2",
+    "published_at": "2026-05-12T05:00:00+00:00",
+    "summary": "Anthropic closes major funding round.",
+    "content": "",
+    "lang": "en"
+  }
+]

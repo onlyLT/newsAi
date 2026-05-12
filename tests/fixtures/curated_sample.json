@@ -1,0 +1,16 @@
+[
+  {
+    "rank": 1,
+    "title": "示例已发布条目",
+    "tldr": "x",
+    "details": "y",
+    "impact": {
+      "tickers": ["NVDA"],
+      "sectors": [],
+      "direction": "bullish",
+      "reasoning": "z"
+    },
+    "source_url": "https://x",
+    "source_name": "X"
+  }
+]
