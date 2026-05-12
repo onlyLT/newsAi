@@ -33,3 +33,5 @@ include = ["core*", "pipelines*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+tmp_path_retention_policy = "none"
+addopts = "--basetemp=.pytest_tmp"
