@@ -7,7 +7,7 @@ class LLMJsonError(ValueError):
     pass
 
 
-_FENCE = re.compile(r"```(?:json)?\s*(\{.*?\}|\[.*?\])\s*```", re.DOTALL)
+_FENCE = re.compile(r"```(?:json)?\s*(\{.*\}|\[.*\])\s*```", re.DOTALL)
 
 
 def _extract_json(text: str):

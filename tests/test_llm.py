@@ -58,3 +58,14 @@ def test_llm_sends_cached_blocks_as_cache_control():
     sys_param = call_kwargs["system"]
     assert isinstance(sys_param, list)
     assert any(b.get("cache_control") for b in sys_param if isinstance(b, dict))
+
+
+def test_llm_extracts_nested_json_from_fenced_block():
+    fake = MagicMock()
+    fake.messages.create.return_value = _mock_response(
+        'Here you go:\n```json\n[{"a": {"b": 1}, "c": [1, 2, 3]}, {"a": {"b": 2}}]\n```'
+    )
+    with patch("core.llm.Anthropic", return_value=fake):
+        c = LLMClient(api_key="x")
+        out = c.complete_json(system="s", user="u")
+    assert out == [{"a": {"b": 1}, "c": [1, 2, 3]}, {"a": {"b": 2}}]
