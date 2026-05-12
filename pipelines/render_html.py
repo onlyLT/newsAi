@@ -60,11 +60,11 @@ def render_frame(
         mode=mode, card_index=card_index or 0,
     )
     out.write_text(html, encoding="utf-8")
-    # Each frame HTML needs styles.css next to it (Playwright loads via file://)
+    # Each frame HTML needs styles.css next to it (Playwright loads via file://).
+    # Always overwrite — template/CSS edits between runs must propagate.
     css_src = templates_dir / "styles.css"
     css_dst = out_dir / "styles.css"
-    if not css_dst.exists():
-        shutil.copyfile(css_src, css_dst)
+    shutil.copyfile(css_src, css_dst)
     return out
 
 
