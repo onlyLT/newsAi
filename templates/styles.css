@@ -21,33 +21,73 @@ html, body {
 .page-list h1 { font-size: 42px; font-weight: 700; }
 .page-list .meta { color: var(--muted); margin-top: 8px; font-size: 16px; }
 
+/* News clipping card */
 .card {
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 16px;
-  padding: 28px 32px;
+  background: #fafaf8;
+  color: #111827;
+  border-radius: 8px;
+  padding: 32px 36px;
   margin-bottom: 16px;
-  display: grid;
-  grid-template-columns: 64px 1fr;
-  gap: 20px;
+  border: 1px solid var(--card-border);
+  font-family: "PingFang SC", "Microsoft YaHei", -apple-system, system-ui, serif;
 }
-.card .rank { font-size: 40px; font-weight: 800; color: var(--accent); }
-.card .body h2 { font-size: 26px; margin-bottom: 12px; }
-.card .body .tldr { font-size: 18px; color: var(--fg); margin-bottom: 12px; }
-.card .body .details { font-size: 15px; color: var(--muted); margin-bottom: 16px; line-height: 1.5; }
-.tags { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.tag { padding: 4px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; }
-.tag.ticker { background: rgba(78, 158, 255, 0.15); color: var(--accent); }
-.tag.sector { background: rgba(139, 149, 167, 0.15); color: var(--muted); }
-.tag.dir-bullish { background: rgba(46, 204, 113, 0.2); color: var(--bull); }
-.tag.dir-bearish { background: rgba(231, 76, 60, 0.2); color: var(--bear); }
-.tag.dir-mixed { background: rgba(241, 196, 15, 0.2); color: var(--mixed); }
-.reasoning { margin-top: 14px; font-size: 14px; color: var(--muted); border-left: 3px solid var(--accent); padding-left: 12px; }
-.source { margin-top: 12px; font-size: 13px; color: var(--muted); }
-.source a { color: var(--accent); text-decoration: none; }
+.clip-header { margin-bottom: 18px; }
+.clip-title {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.35;
+  margin-bottom: 14px;
+}
+.clip-title mark {
+  background: #fff176;
+  color: #111827;
+  padding: 0 6px;
+  border-radius: 2px;
+}
+.clip-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: #6b7280;
+  flex-wrap: wrap;
+}
+.clip-source { font-weight: 600; color: #374151; }
+.clip-dot { color: #9ca3af; }
+.clip-spacer { flex: 1; }
+.clip-tag {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.clip-tag.dir-bullish { background: rgba(46, 204, 113, 0.18); color: #057a3e; }
+.clip-tag.dir-bearish { background: rgba(231, 76, 60, 0.18); color: #b8341e; }
+.clip-tag.dir-mixed { background: rgba(241, 196, 15, 0.22); color: #946a04; }
+.clip-tag.ticker { background: rgba(78, 158, 255, 0.15); color: #1d4ed8; }
+.clip-body {
+  font-size: 17px;
+  line-height: 1.65;
+  color: #1f2937;
+  margin-bottom: 18px;
+}
+.clip-impact {
+  background: #fff7e6;
+  border-left: 3px solid #f59e0b;
+  padding: 12px 16px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: #6b4500;
+}
+.clip-impact-label {
+  display: inline-block;
+  font-weight: 700;
+  color: #c2410c;
+  margin-right: 8px;
+}
 
-/* Video frame mode: 1920x1080 single-card centered */
-.frame-card, .frame-intro, .frame-outro {
+/* Video frame mode: 1920x1080 */
+.frame-intro, .frame-outro {
   width: 1920px;
   height: 1080px;
   display: flex;
@@ -55,18 +95,94 @@ html, body {
   justify-content: center;
   padding: 80px;
 }
-.frame-card .card {
-  width: 1400px;
-  max-width: 100%;
-  font-size: 1.4em;
-  grid-template-columns: 120px 1fr;
+
+/* Video-frame sizing for the clipping card */
+.frame-card {
+  position: relative;
+  width: 1920px;
+  height: 1080px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 80px 80px 0 80px;
 }
-.frame-card .card .rank { font-size: 96px; }
-.frame-card .card .body h2 { font-size: 56px; line-height: 1.2; margin-bottom: 24px; }
-.frame-card .card .body .tldr { font-size: 32px; margin-bottom: 20px; }
-.frame-card .card .body .details { font-size: 24px; }
-.frame-card .tag { font-size: 22px; padding: 6px 18px; }
-.frame-card .reasoning { font-size: 22px; margin-top: 24px; }
+.frame-card .card {
+  width: 1500px;
+  max-width: 100%;
+  padding: 56px 64px;
+  border: 4px solid #ef4444;
+  margin-top: 60px;
+}
+.frame-card .clip-title {
+  font-size: 56px;
+  line-height: 1.25;
+  margin-bottom: 26px;
+}
+.frame-card .clip-meta { font-size: 24px; gap: 16px; }
+.frame-card .clip-tag { font-size: 22px; padding: 6px 18px; }
+.frame-card .clip-body {
+  font-size: 30px;
+  line-height: 1.7;
+  margin-bottom: 28px;
+}
+.frame-card .clip-impact {
+  font-size: 26px;
+  padding: 20px 24px;
+  line-height: 1.55;
+}
+.frame-card .clip-impact-label { font-size: 24px; }
+
+/* Bottom title strip */
+.frame-card .title-strip {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  height: 80px;
+  background: #0a0d12;
+  border-top: 1px solid var(--card-border);
+}
+.frame-card .strip-cell {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 0 12px;
+  font-size: 20px;
+  color: var(--muted);
+  border-right: 1px solid var(--card-border);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  position: relative;
+}
+.frame-card .strip-cell:last-child { border-right: none; }
+.frame-card .strip-cell.active {
+  color: var(--fg);
+  background: rgba(239, 68, 68, 0.08);
+}
+.frame-card .strip-cell.active::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: #ef4444;
+}
+.frame-card .strip-rank {
+  font-weight: 700;
+  color: var(--accent);
+  font-size: 18px;
+}
+.frame-card .strip-cell.active .strip-rank { color: #ef4444; }
+.frame-card .strip-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 .frame-intro h1, .frame-outro h1 { font-size: 120px; }
 .frame-intro .sub, .frame-outro .sub { font-size: 40px; color: var(--muted); margin-top: 24px; }
@@ -114,35 +230,3 @@ html, body {
   color: var(--fg);
 }
 
-/* Progress bar at bottom of card frame */
-.frame-card { position: relative; }
-.frame-card .progress {
-  position: absolute;
-  bottom: 40px;
-  left: 80px;
-  right: 80px;
-  display: flex;
-  align-items: center;
-  gap: 24px;
-}
-.frame-card .progress-bar {
-  flex: 1;
-  height: 6px;
-  background: var(--card-border);
-  border-radius: 3px;
-  overflow: hidden;
-}
-.frame-card .progress-fill {
-  height: 100%;
-  background: var(--accent);
-  border-radius: 3px;
-  transition: none;
-}
-.frame-card .progress-text {
-  color: var(--muted);
-  font-size: 22px;
-  font-weight: 600;
-  font-feature-settings: "tnum";
-  min-width: 80px;
-  text-align: right;
-}

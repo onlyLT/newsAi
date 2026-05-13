@@ -22,10 +22,10 @@ def _validate_script_payload(payload) -> tuple[str, list[Segment]]:
     if not isinstance(script_md, str) or not script_md.strip():
         raise ValueError("script_md missing")
     if not isinstance(raw_segs, list) or len(raw_segs) < 3:
-        raise ValueError("segments must be a list with intro + items + outro")
+        raise ValueError("segments must be a list with toc + items + outro")
     segs = [Segment.model_validate(s) for s in raw_segs]
-    if segs[0].id != "intro" or segs[-1].id != "outro":
-        raise ValueError("segments must start with intro and end with outro")
+    if segs[0].id != "toc" or segs[-1].id != "outro":
+        raise ValueError("segments must start with toc and end with outro")
     return script_md, segs
 
 

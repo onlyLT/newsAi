@@ -35,10 +35,14 @@
   {% set item = items[card_index] %}
   <div class="frame-card">
     {% include "_card.html.j2" %}
-    <div class="progress">
-      <div class="progress-bar"><div class="progress-fill" style="width: {{ (item.rank / items|length * 100)|round(0, 'floor') }}%"></div></div>
-      <div class="progress-text">{{ item.rank }} / {{ items|length }}</div>
-    </div>
+    <nav class="title-strip" aria-label="目录">
+      {% for it in items %}
+        <span class="strip-cell{% if it.rank == item.rank %} active{% endif %}">
+          <span class="strip-rank">{{ "%02d"|format(it.rank) }}</span>
+          <span class="strip-title">{{ it.title }}</span>
+        </span>
+      {% endfor %}
+    </nav>
   </div>
 {% else %}
   <div class="page-list">

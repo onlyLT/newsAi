@@ -1,20 +1,23 @@
-<div class="card" id="card-{{ item.rank }}">
-  <div class="rank">{{ "%02d"|format(item.rank) }}</div>
-  <div class="body">
-    <h2>{{ item.title }}</h2>
-    <div class="tldr">{{ item.tldr }}</div>
-    <div class="details">{{ item.details }}</div>
-    <div class="tags">
-      <span class="tag dir-{{ item.impact.direction }}">
+<article class="card" id="card-{{ item.rank }}">
+  <header class="clip-header">
+    <h2 class="clip-title"><mark>{{ item.title }}</mark></h2>
+    <div class="clip-meta">
+      <span class="clip-source">{{ item.source_name }}</span>
+      <span class="clip-dot">·</span>
+      <span class="clip-date">{{ date }}</span>
+      <span class="clip-spacer"></span>
+      <span class="clip-tag dir-{{ item.impact.direction }}">
         {% if item.impact.direction == "bullish" %}利好
         {% elif item.impact.direction == "bearish" %}利空
         {% else %}中性
         {% endif %}
       </span>
-      {% for t in item.impact.tickers %}<span class="tag ticker">{{ t }}</span>{% endfor %}
-      {% for s in item.impact.sectors %}<span class="tag sector">{{ s }}</span>{% endfor %}
+      {% for t in item.impact.tickers %}<span class="clip-tag ticker">{{ t }}</span>{% endfor %}
     </div>
-    <div class="reasoning">{{ item.impact.reasoning }}</div>
-    <div class="source">来源：<a href="{{ item.source_url }}">{{ item.source_name }}</a></div>
+  </header>
+  <p class="clip-body">{{ item.details }}</p>
+  <div class="clip-impact">
+    <span class="clip-impact-label">投资影响</span>
+    {{ item.impact.reasoning }}
   </div>
-</div>
+</article>

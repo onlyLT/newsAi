@@ -11,7 +11,7 @@ def _script_payload():
     return {
         "script_md": "# 今日 AI 投资晨读\n\n## 开场\n各位早...\n",
         "segments": [
-            {"id": "intro", "text": "各位早", "duration_hint_s": 10},
+            {"id": "toc", "text": "各位早", "duration_hint_s": 7},
             {"id": "item-1", "text": "第一条", "duration_hint_s": 22, "card_ref": "card-1"},
             {"id": "outro", "text": "拜拜", "duration_hint_s": 10},
         ],
@@ -40,6 +40,6 @@ def test_script_writes_two_files(tmp_path):
         )
     assert (tmp_path / "script.md").exists()
     segs = json.loads((tmp_path / "segments.json").read_text(encoding="utf-8"))
-    assert segs[0]["id"] == "intro"
+    assert segs[0]["id"] == "toc"  # was "intro"
     assert segs[1]["card_ref"] == "card-1"
     assert segs[-1]["id"] == "outro"

@@ -143,7 +143,7 @@ async def assemble_video(
     # Step C: concat + burn subtitles + mix bgm (optional)
     burned = work / "burned.mp4"
     subs_arg = str(srt_path).replace("\\", "/").replace(":", r"\:")  # ffmpeg filter escapes
-    vf = f"subtitles='{subs_arg}':force_style='FontName=PingFang SC,FontSize=20,PrimaryColour=&HFFFFFF&,OutlineColour=&H000000&,Outline=2,Alignment=2,MarginV=80'"
+    vf = f"subtitles='{subs_arg}':force_style='FontName=PingFang SC,FontSize=20,PrimaryColour=&HFFFFFF&,OutlineColour=&H000000&,Outline=2,Alignment=2,MarginV=120'"
     cmd_concat = [
         "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat_list),
         "-vf", vf,
@@ -194,13 +194,6 @@ async def run(
 
     # 1. Render frames
     frame_paths: dict[str, Path] = {}
-    intro_html = render_frame(
-        curated_path=curated_path, out_dir=frames_dir, templates_dir=templates_dir,
-        date=date, episode=episode, mode="intro",
-    )
-    frame_paths["intro"] = frames_dir / "intro.png"
-    await screenshot_html(intro_html, frame_paths["intro"])
-
     outro_html = render_frame(
         curated_path=curated_path, out_dir=frames_dir, templates_dir=templates_dir,
         date=date, episode=episode, mode="outro",

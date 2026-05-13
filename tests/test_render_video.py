@@ -109,7 +109,7 @@ def test_render_video_run_end_to_end(tmp_path, monkeypatch):
     day.mkdir(parents=True)
     (day / "curated.json").write_text(json.dumps(curated, ensure_ascii=False), encoding="utf-8")
     segs = [
-        {"id": "intro", "text": "开场", "duration_hint_s": 2},
+        {"id": "toc", "text": "各位早", "duration_hint_s": 2},
         {"id": "item-1", "text": "第一条", "duration_hint_s": 2, "card_ref": "card-1"},
         {"id": "item-2", "text": "第二条", "duration_hint_s": 2, "card_ref": "card-2"},
         {"id": "outro", "text": "拜拜", "duration_hint_s": 2},
