@@ -23,7 +23,7 @@
 {% elif mode == "toc" %}
   <div class="frame-toc">
     <div class="toc-inner">
-      <h2>今日 10 条 · AI 投资晨读</h2>
+      <h2>今日 {{ items|length }} 条 · AI 投资晨读</h2>
       <ol class="toc-list">
         {% for item in items %}
           <li><span class="toc-rank">{{ "%02d"|format(item.rank) }}</span><span class="toc-title">{{ item.title }}</span></li>
