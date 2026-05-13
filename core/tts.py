@@ -17,7 +17,7 @@ class MiniMaxTTS:
         self.throttle_s = throttle_s
 
     def synthesize(self, text: str, out_path: Path,
-                   speed: float = 1.0, vol: int = 1, pitch: int = 0) -> float:
+                   speed: float = 1.1, vol: int = 1, pitch: int = 0) -> float:
         """Synthesize `text` to `out_path` (mp3). Returns duration in seconds.
 
         Throttles before the HTTP call to stay under MiniMax's RPM limit.

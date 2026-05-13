@@ -52,6 +52,7 @@ def main(argv: list[str] | None = None) -> int:
 
     episode = _episode_number(settings, date)
     bgm = settings.assets_dir / "bgm.mp3"
+    sfx = settings.assets_dir / "page_turn.mp3"
 
     try:
         logger.info("stage.start", stage="ingest")
@@ -93,6 +94,7 @@ def main(argv: list[str] | None = None) -> int:
             tts_group_id=settings.minimax_group_id,
             tts_voice_id=settings.minimax_voice_id,
             bgm_path=bgm if bgm.exists() else None,
+            sfx_path=sfx if sfx.exists() else None,
             date=date, episode=episode,
         ))
         logger.info("run.success", date=date, episode=episode)

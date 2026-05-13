@@ -101,6 +101,7 @@ async def assemble_video(
     srt_path: Path,
     out_path: Path,
     bgm_path: Path | None = None,
+    sfx_path: Path | None = None,
 ) -> Path:
     """
     segments: [{frame: Path png, audio: Path mp3, duration_s: float}]
@@ -116,20 +117,39 @@ async def assemble_video(
 
     # Step A: build a per-segment intermediate (image looped for duration + that segment's audio)
     seg_files: list[Path] = []
+    use_sfx = sfx_path is not None and sfx_path.exists()
     for i, seg in enumerate(segments):
         frame = seg["frame"]
         audio = seg["audio"]
         dur = float(seg["duration_s"])
         seg_out = work / f"seg_{i:03d}.mp4"
-        cmd = [
-            "ffmpeg", "-y",
-            "-loop", "1", "-t", f"{dur:.3f}", "-i", str(frame),
-            "-i", str(audio),
-            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", "30",
-            "-c:a", "aac", "-b:a", "128k",
-            "-shortest",
-            str(seg_out),
-        ]
+        sid = seg.get("id", "")
+        if use_sfx and sid.startswith("item-"):
+            # SFX overlaid (amix) on first ~0.3s of TTS so subtitle stays aligned.
+            cmd = [
+                "ffmpeg", "-y",
+                "-loop", "1", "-t", f"{dur:.3f}", "-i", str(frame),
+                "-i", str(audio),
+                "-i", str(sfx_path),
+                "-filter_complex",
+                "[2:a]volume=0.6[sfx];"
+                "[1:a][sfx]amix=inputs=2:duration=first:normalize=0[a]",
+                "-map", "0:v", "-map", "[a]",
+                "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", "30",
+                "-c:a", "aac", "-b:a", "128k",
+                "-shortest",
+                str(seg_out),
+            ]
+        else:
+            cmd = [
+                "ffmpeg", "-y",
+                "-loop", "1", "-t", f"{dur:.3f}", "-i", str(frame),
+                "-i", str(audio),
+                "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", "30",
+                "-c:a", "aac", "-b:a", "128k",
+                "-shortest",
+                str(seg_out),
+            ]
         subprocess.run(cmd, check=True, capture_output=True)
         seg_files.append(seg_out)
 
@@ -180,6 +200,7 @@ async def run(
     tts_group_id: str,
     tts_voice_id: str,
     bgm_path: Path | None,
+    sfx_path: Path | None = None,
     date: str,
     episode: int,
 ) -> Path:
@@ -256,6 +277,7 @@ async def run(
         srt_path=srt_path,
         out_path=out_mp4,
         bgm_path=bgm_path,
+        sfx_path=sfx_path,
     )
     return out_mp4
 
@@ -270,6 +292,7 @@ def main():
     date = args.date or today_str(settings.timezone)
     d = get_day_dir(settings, date)
     bgm = settings.assets_dir / "bgm.mp3"
+    sfx = settings.assets_dir / "page_turn.mp3"
     asyncio.run(run(
         day_dir=d,
         templates_dir=settings.templates_dir,
@@ -277,6 +300,7 @@ def main():
         tts_group_id=settings.minimax_group_id,
         tts_voice_id=settings.minimax_voice_id,
         bgm_path=bgm if bgm.exists() else None,
+        sfx_path=sfx if sfx.exists() else None,
         date=date, episode=args.episode,
     ))
     print(f"wrote {d / 'video.mp4'}")
