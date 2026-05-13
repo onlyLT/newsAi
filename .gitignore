@@ -10,6 +10,9 @@ dist/
 *.log
 .pytest_tmp/
 
+# User-supplied SFX (e.g. SoundJay page-flip; license forbids redistribution)
+assets/page_turn.mp3
+
 # Environment
 .env
 
