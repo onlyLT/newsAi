@@ -163,7 +163,7 @@ async def assemble_video(
     # Step C: concat + burn subtitles + mix bgm (optional)
     burned = work / "burned.mp4"
     subs_arg = str(srt_path).replace("\\", "/").replace(":", r"\:")  # ffmpeg filter escapes
-    vf = f"subtitles='{subs_arg}':force_style='FontName=PingFang SC,FontSize=36,PrimaryColour=&HFFFFFF&,OutlineColour=&H000000&,Outline=3,Alignment=2,MarginV=95'"
+    vf = f"subtitles='{subs_arg}':force_style='FontName=PingFang SC,FontSize=22,PrimaryColour=&HFFFFFF&,OutlineColour=&H000000&,Outline=2,Alignment=2,MarginV=50'"
     cmd_concat = [
         "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat_list),
         "-vf", vf,
