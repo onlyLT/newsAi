@@ -118,8 +118,8 @@ def _fit_font_size(
     draw: ImageDraw.ImageDraw,
     text: str,
     box: tuple[int, int, int, int],
-    target_fill_w: float = 0.82,
-    target_fill_h: float = 0.75,
+    target_fill_w: float = 0.92,
+    target_fill_h: float = 0.88,
 ) -> int:
     """Return the largest font size that fits text within target_fill_w × box_w
     and target_fill_h × box_h. Used to compute a unified size across blocks."""
@@ -146,8 +146,8 @@ def _draw_centered(
     text: str,
     box: tuple[int, int, int, int],
     font_size: int | None = None,
-    target_fill_w: float = 0.82,
-    target_fill_h: float = 0.75,
+    target_fill_w: float = 0.92,
+    target_fill_h: float = 0.88,
 ) -> None:
     """
     Draw text centred in box with a stroke outline. If font_size is None,
