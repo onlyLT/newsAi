@@ -20,6 +20,29 @@ The pipeline uses DeepSeek V4 Flash by default (cheaper, ~10x less per run than 
 
 The `anthropic` Python SDK is provider-agnostic when given the right base URL; no code changes needed.
 
+## Web dashboard
+
+Local control panel for triggering runs, editing prompts, previewing publish metadata.
+
+```powershell
+cd E:\dev\newsAi
+.\.venv\Scripts\python.exe -m uvicorn web.main:app --port 8765
+# Open http://localhost:8765
+```
+
+For development with auto-reload:
+
+```powershell
+.\.venv\Scripts\python.exe -m uvicorn web.main:app --port 8765 --reload
+```
+
+### Panels
+
+- **Dashboard** — today's episode card (video player, file size, B站 link) + past 30 days grid
+- **Run** — date picker, run all / re-run single stage buttons, live log via SSE
+- **Prompts** — edit `curate.system.md` / `script.system.md` inline, save or save + re-run
+- **Publish** — preview auto-generated B站 metadata (editable), cover image, one-click publish
+
 ## Architecture
 See `docs/specs/2026-05-12-ai-news-podcast-design.md`.
 

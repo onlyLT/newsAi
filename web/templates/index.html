@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NewsAI Dashboard</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <!-- Alpine.js for UI state -->
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <!-- HTMX for AJAX -->
+  <script src="https://unpkg.com/htmx.org@1.9.12/dist/htmx.min.js"></script>
+</head>
+<body x-data="dashboard()" x-init="init()">
+
+<!-- ── Header / Nav ─────────────────────────────────────────────────── -->
+<header class="app-header">
+  <span class="logo">🎙 NewsAI</span>
+  <nav>
+    <ul class="nav-tabs">
+      <li><button :class="{active: tab==='dashboard'}" @click="tab='dashboard'">Dashboard</button></li>
+      <li><button :class="{active: tab==='run'}"       @click="tab='run';     initRun()">Run</button></li>
+      <li><button :class="{active: tab==='prompts'}"   @click="tab='prompts'; loadPrompt()">Prompts</button></li>
+      <li><button :class="{active: tab==='publish'}"   @click="tab='publish'; loadPublish()">Publish</button></li>
+    </ul>
+  </nav>
+</header>
+
+<main class="page-content">
+
+  <!-- ══ Panel 1: Dashboard ══════════════════════════════════════════ -->
+  <section class="panel" :class="{active: tab==='dashboard'}">
+
+    <!-- Today's episode -->
+    <div class="section-title">今日 — {{ today }}</div>
+    <div class="section-sub">Today's episode</div>
+
+    {% if today_ep %}
+    <div class="card" style="margin-bottom:1.5rem">
+      <div class="today-grid">
+        <div class="today-video">
+          {% if today_ep.has_video %}
+          <video controls preload="metadata">
+            <source src="/dist/{{ today }}/video.mp4" type="video/mp4">
+            Your browser does not support HTML5 video.
+          </video>
+          {% else %}
+          <div style="background:var(--surface2);border-radius:var(--radius);aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:.85rem;">
+            No video yet
+          </div>
+          {% endif %}
+        </div>
+        <div class="today-info">
+          <div class="info-row">
+            <span class="label">Items</span>
+            <span>{{ today_ep.item_count or '—' }}</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Video size</span>
+            <span>{% if today_ep.video_size_kb %}{{ "%.1f"|format(today_ep.video_size_kb / 1024) }} MB{% else %}—{% endif %}</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Run status</span>
+            <span>
+              {% if today_ep.status == 'success' %}
+              <span class="badge badge-success">✅ Success</span>
+              {% elif today_ep.status == 'failed' %}
+              <span class="badge badge-danger">❌ Failed</span>
+              {% else %}
+              <span class="badge badge-muted">— Unknown</span>
+              {% endif %}
+            </span>
+          </div>
+          {% if today_ep.bvid %}
+          <div class="info-row">
+            <span class="label">B站</span>
+            <a href="https://www.bilibili.com/video/{{ today_ep.bvid }}" target="_blank" class="badge badge-accent">
+              {{ today_ep.bvid }}
+            </a>
+          </div>
+          {% endif %}
+          {% if today_ep.has_html %}
+          <a href="/dist/{{ today }}/index.html" target="_blank" class="btn btn-ghost btn-sm" style="align-self:flex-start;margin-top:.5rem">
+            📄 Open HTML report
+          </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="card" style="margin-bottom:1.5rem;color:var(--muted);text-align:center;padding:2rem;">
+      No episode for {{ today }} yet.
+      <a href="#" @click.prevent="tab='run'; initRun()" style="color:var(--accent);margin-left:.5rem">Run pipeline →</a>
+    </div>
+    {% endif %}
+
+    <!-- Past 30 days grid -->
+    <div class="section-title" style="font-size:.95rem">Past episodes</div>
+    <div class="episodes-grid">
+      {% for ep in episodes %}
+      <a
+        href="{% if ep.has_html %}/dist/{{ ep.date }}/index.html{% else %}#{% endif %}"
+        {% if ep.has_html %}target="_blank"{% endif %}
+        class="ep-card"
+      >
+        <div class="ep-date">{{ ep.date }}</div>
+        <div class="ep-meta">
+          {% if ep.item_count %}{{ ep.item_count }} items{% else %}—{% endif %}<br>
+          {% if ep.video_size_kb %}{{ "%.1f"|format(ep.video_size_kb / 1024) }} MB{% else %}no video{% endif %}
+        </div>
+        <div class="ep-badges">
+          {% if ep.status == 'success' %}
+          <span class="badge badge-success">✅</span>
+          {% elif ep.status == 'failed' %}
+          <span class="badge badge-danger">❌</span>
+          {% else %}
+          <span class="badge badge-muted">?</span>
+          {% endif %}
+          {% if ep.bvid %}
+          <span class="badge badge-accent">📺</span>
+          {% endif %}
+        </div>
+      </a>
+      {% else %}
+      <div style="color:var(--muted);grid-column:1/-1;text-align:center;padding:2rem;">
+        No episodes found in dist/
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <!-- ══ Panel 3: Run trigger ════════════════════════════════════════ -->
+  <section class="panel" :class="{active: tab==='run'}">
+    <div class="section-title">Run Pipeline</div>
+    <div class="section-sub">Trigger a full pipeline run or re-run a single stage.</div>
+
+    <div class="card">
+      <div class="form-row">
+        <label for="run-date">Date</label>
+        <input type="date" id="run-date" x-model="runDate">
+
+        <button
+          class="btn btn-primary"
+          :disabled="running"
+          @click="triggerRun(null)"
+        >
+          <span x-show="running" class="spinner"></span>
+          Run all (full pipeline)
+        </button>
+
+        <button
+          class="btn btn-ghost"
+          :disabled="running"
+          @click="triggerRun(runStage)"
+        >
+          <span x-show="running" class="spinner"></span>
+          Re-run stage…
+        </button>
+
+        <select x-model="runStage">
+          <option value="ingest">ingest</option>
+          <option value="curate">curate</option>
+          <option value="script">script</option>
+          <option value="render_html">render_html</option>
+          <option value="render_video">render_video</option>
+          <option value="publish">publish</option>
+        </select>
+      </div>
+
+      <div x-show="runError" class="error-box" x-text="runError" style="margin-bottom:.75rem"></div>
+      <div x-show="runMsg"   style="color:var(--success);font-size:.85rem;margin-bottom:.5rem" x-text="runMsg"></div>
+
+      <div class="card-title">Live log — <span x-text="runDate"></span></div>
+      <div class="log-panel" id="log-panel" x-ref="logPanel">
+        <template x-for="(line, i) in logLines" :key="i">
+          <div
+            class="log-line"
+            :class="{
+              success: line.includes('run.success'),
+              error:   line.includes('run.fail') || line.includes('ERROR'),
+              stage:   line.includes('stage.start')
+            }"
+            x-text="line"
+          ></div>
+        </template>
+        <div x-show="logLines.length === 0" style="color:var(--muted);">
+          Logs will appear here once a run starts…
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ Panel 4: Prompts editor ════════════════════════════════════ -->
+  <section class="panel" :class="{active: tab==='prompts'}">
+    <div class="section-title">Prompt Editor</div>
+    <div class="section-sub">Edit curate / script system prompts and save directly to disk.</div>
+
+    <div class="card">
+      <div class="tab-bar">
+        <button class="tab-btn" :class="{active: promptTab==='curate'}" @click="promptTab='curate'; loadPrompt()">Curate prompt</button>
+        <button class="tab-btn" :class="{active: promptTab==='script'}" @click="promptTab='script'; loadPrompt()">Script prompt</button>
+      </div>
+
+      <textarea
+        x-model="promptContent"
+        rows="30"
+        :placeholder="'Loading ' + promptTab + ' prompt…'"
+      ></textarea>
+
+      <div class="form-row" style="margin-top:.75rem">
+        <button class="btn btn-primary" :disabled="promptSaving" @click="savePrompt(false)">
+          <span x-show="promptSaving" class="spinner"></span>
+          Save
+        </button>
+        <button class="btn btn-ghost" :disabled="promptSaving" @click="savePrompt(true)">
+          <span x-show="promptSaving" class="spinner"></span>
+          Save &amp; re-run script for <span x-text="today" style="margin-left:.3rem"></span>
+        </button>
+        <span x-show="promptMsg" style="color:var(--success);font-size:.85rem" x-text="promptMsg"></span>
+        <span x-show="promptError" style="color:var(--danger);font-size:.85rem" x-text="promptError"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ Panel 6: Publish ════════════════════════════════════════════ -->
+  <section class="panel" :class="{active: tab==='publish'}">
+    <div class="section-title">Publish to B站</div>
+    <div class="section-sub">Preview and edit metadata, then publish with one click.</div>
+
+    <div class="card">
+      <div class="form-row">
+        <label for="pub-date">Date</label>
+        <input type="date" id="pub-date" x-model="pubDate" @change="loadPublish()">
+        <button class="btn btn-ghost btn-sm" @click="loadPublish()">Load preview</button>
+      </div>
+
+      <div x-show="pubLoading" style="color:var(--muted);font-size:.85rem">Loading metadata…</div>
+
+      <template x-if="pubMeta">
+        <div class="publish-layout">
+          <div class="field-group">
+            <div>
+              <div class="field-label">Title</div>
+              <input type="text" x-model="pubMeta.title">
+            </div>
+            <div>
+              <div class="field-label">Description</div>
+              <textarea rows="4" x-model="pubMeta.desc"></textarea>
+            </div>
+            <div>
+              <div class="field-label">Tags (comma-separated)</div>
+              <input type="text" x-model="pubMeta.tag">
+            </div>
+            <div x-show="pubMeta.bvid" style="font-size:.85rem">
+              Already published:
+              <a :href="'https://www.bilibili.com/video/' + pubMeta.bvid" target="_blank" style="color:var(--accent)" x-text="pubMeta.bvid"></a>
+            </div>
+
+            <div class="form-row" style="margin-top:.25rem">
+              <button class="btn btn-primary" :disabled="pubLoading" @click="doPublish()">
+                <span x-show="pubLoading" class="spinner"></span>
+                Publish to B站
+              </button>
+            </div>
+
+            <div x-show="pubBvid" style="color:var(--success);font-size:.9rem">
+              Published! BV:
+              <a :href="'https://www.bilibili.com/video/' + pubBvid" target="_blank" style="color:var(--accent)" x-text="pubBvid"></a>
+            </div>
+            <div x-show="pubError" class="error-box" x-text="pubError"></div>
+          </div>
+
+          <div>
+            <div class="field-label" style="margin-bottom:.5rem">Cover</div>
+            <template x-if="pubMeta.cover">
+              <img
+                :src="pubMeta.cover.startsWith('/dist/') ? pubMeta.cover : '/dist/' + pubDate + '/frames/toc.png'"
+                class="cover-img"
+                alt="cover"
+                @error="$el.style.display='none'"
+              >
+            </template>
+            <template x-if="!pubMeta.cover">
+              <div class="cover-placeholder">No cover image</div>
+            </template>
+          </div>
+        </div>
+      </template>
+
+      <div x-show="!pubMeta && !pubLoading" style="color:var(--muted);font-size:.85rem;margin-top:.5rem">
+        Select a date and click "Load preview" to see metadata.
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+function dashboard() {
+  return {
+    tab: 'dashboard',
+    today: '{{ today }}',
+
+    // ── Run panel ─────────────────────────────────────────────────
+    runDate: '{{ today }}',
+    runStage: 'script',
+    running: false,
+    logLines: [],
+    logSource: null,
+    runMsg: '',
+    runError: '',
+
+    initRun() {
+      this.runDate = this.today;
+    },
+
+    async triggerRun(stage) {
+      this.runError = '';
+      this.runMsg   = '';
+      this.logLines = [];
+      if (this.logSource) { this.logSource.close(); this.logSource = null; }
+
+      const body = { date: this.runDate };
+      if (stage) body.stage = stage;
+
+      try {
+        const res = await fetch('/api/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          this.runError = data.detail || JSON.stringify(data);
+          return;
+        }
+        this.running = true;
+        this.runMsg  = `Started ${stage || 'full pipeline'} for ${this.runDate} (task: ${data.task_id})`;
+        this.startLogStream(this.runDate);
+      } catch(e) {
+        this.runError = String(e);
+      }
+    },
+
+    startLogStream(date) {
+      if (this.logSource) this.logSource.close();
+      this.logSource = new EventSource(`/api/run/${date}/log/stream`);
+      this.logSource.onmessage = (e) => {
+        this.logLines.push(e.data);
+        const panel = this.$refs.logPanel;
+        if (panel) panel.scrollTop = panel.scrollHeight;
+        // detect finish
+        if (e.data.includes('run.success') || e.data.includes('run.fail')) {
+          this.running = false;
+        }
+      };
+      this.logSource.onerror = () => {
+        this.running = false;
+        if (this.logSource) this.logSource.close();
+      };
+    },
+
+    // ── Prompts panel ─────────────────────────────────────────────
+    promptTab: 'curate',
+    promptContent: '',
+    promptSaving: false,
+    promptMsg: '',
+    promptError: '',
+
+    async loadPrompt() {
+      this.promptMsg   = '';
+      this.promptError = '';
+      try {
+        const res = await fetch(`/api/prompts/${this.promptTab}`);
+        this.promptContent = await res.text();
+      } catch(e) {
+        this.promptError = String(e);
+      }
+    },
+
+    async savePrompt(andRun) {
+      this.promptMsg   = '';
+      this.promptError = '';
+      this.promptSaving = true;
+      try {
+        const res = await fetch(`/api/prompts/${this.promptTab}`, {
+          method: 'PUT',
+          body: this.promptContent,
+        });
+        if (!res.ok) {
+          const d = await res.json().catch(() => ({}));
+          this.promptError = d.detail || 'Save failed';
+          return;
+        }
+        this.promptMsg = 'Saved ✓';
+        if (andRun) {
+          const r2 = await fetch('/api/run', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ date: this.today, stage: 'script' }),
+          });
+          const d2 = await r2.json();
+          if (!r2.ok) {
+            this.promptError = d2.detail || 'Run trigger failed';
+            return;
+          }
+          this.promptMsg = 'Saved ✓ — script stage triggered. Switch to Run tab to see logs.';
+        }
+      } catch(e) {
+        this.promptError = String(e);
+      } finally {
+        this.promptSaving = false;
+      }
+    },
+
+    // ── Publish panel ─────────────────────────────────────────────
+    pubDate: '{{ today }}',
+    pubMeta: null,
+    pubLoading: false,
+    pubBvid: '',
+    pubError: '',
+
+    async loadPublish() {
+      this.pubMeta    = null;
+      this.pubBvid    = '';
+      this.pubError   = '';
+      this.pubLoading = true;
+      try {
+        const res = await fetch(`/api/publish/${this.pubDate}/preview`);
+        if (!res.ok) {
+          const d = await res.json().catch(() => ({}));
+          this.pubError = d.detail || 'Failed to load preview';
+          return;
+        }
+        this.pubMeta = await res.json();
+      } catch(e) {
+        this.pubError = String(e);
+      } finally {
+        this.pubLoading = false;
+      }
+    },
+
+    async doPublish() {
+      this.pubBvid    = '';
+      this.pubError   = '';
+      this.pubLoading = true;
+      try {
+        const res = await fetch(`/api/publish/${this.pubDate}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(this.pubMeta),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          this.pubError = data.error || data.detail || JSON.stringify(data);
+          return;
+        }
+        if (data.bvid) {
+          this.pubBvid = data.bvid;
+          this.pubMeta.bvid = data.bvid;
+        } else {
+          this.pubError = 'Published but no BV returned: ' + JSON.stringify(data);
+        }
+      } catch(e) {
+        this.pubError = String(e);
+      } finally {
+        this.pubLoading = false;
+      }
+    },
+
+    // ── Init ──────────────────────────────────────────────────────
+    init() {
+      // nothing needed at startup; panels load on tab switch
+    },
+  };
+}
+</script>
+</body>
+</html>

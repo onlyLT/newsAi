@@ -18,6 +18,10 @@ dependencies = [
     "tzdata",
     "win10toast>=0.9; sys_platform == 'win32'",
     "setuptools<72; sys_platform == 'win32'",  # provides pkg_resources for win10toast (removed in setuptools 72+)
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "sse-starlette>=2.1.0",
+    "python-multipart>=0.0.9",
 ]
 
 [project.optional-dependencies]
@@ -29,7 +33,7 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["core*", "pipelines*"]
+include = ["core*", "pipelines*", "web*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
