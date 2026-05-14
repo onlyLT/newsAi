@@ -13,6 +13,10 @@ dist/
 # User-supplied SFX (e.g. SoundJay page-flip; license forbids redistribution)
 assets/page_turn.mp3
 
+# biliup session cookie — DO NOT commit. Bearer credential to your B站 account.
+cookies.json
+*.cookies.json
+
 # Environment
 .env
 
