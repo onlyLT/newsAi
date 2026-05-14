@@ -76,6 +76,7 @@ def main(argv: list[str] | None = None) -> int:
             segments_path=d / "segments.json",
             api_key=settings.anthropic_api_key,
             prompts_dir=settings.prompts_dir,
+            date=date,
             llm_model=settings.llm_model,
             llm_base_url=settings.anthropic_base_url,
         )

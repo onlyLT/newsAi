@@ -37,6 +37,7 @@ def test_script_writes_two_files(tmp_path):
             segments_path=tmp_path / "segments.json",
             api_key="x",
             prompts_dir=Path(__file__).parent.parent / "prompts",
+            date="2026-05-14",
         )
     assert (tmp_path / "script.md").exists()
     segs = json.loads((tmp_path / "segments.json").read_text(encoding="utf-8"))
