@@ -9,3 +9,8 @@ publish:
   tid: 95
   title_prefix: 财经早报
   base_tags: [财经, A股, 投资, 中国经济, 央行, 政策, 股市, 日更, 早报, 财政]
+# Manual block coords because cn-finance frame has widespread red
+# (blazer + stock LED bg) that confuses HSV auto-detection.
+cover:
+  top_block: [172, 289, 915, 534]      # red rectangle (top)
+  bottom_block: [172, 528, 1078, 778]  # gold rectangle (bottom)

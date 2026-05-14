@@ -191,38 +191,52 @@ def compose_cover(
     out_path: Path,
     text_top: str,
     text_bottom: str,
+    top_block_override: tuple[int, int, int, int] | None = None,
+    bottom_block_override: tuple[int, int, int, int] | None = None,
 ) -> Path:
     """
     Compose daily cover by overlaying text on the channel frame.
 
-    1. Open frame, resize to 1920x1080 (letterbox if needed).
-    2. Auto-detect purple and gold colour blocks via HSV masking.
-    3. Render Chinese text centred on each block with white+black stroke.
-    4. Save to out_path.
+    Block coords are at 1920x1080. If override is None, auto-detect via HSV
+    masking (works when frame has a single distinct accent color region).
+    Use override for frames with widespread accent color (e.g. cn-finance's
+    red blazer + red background bleeding into red block detection).
     """
     im = Image.open(frame_path).convert("RGB")
     im = _resize_to_canvas(im)
     rgb = np.array(im)
 
-    # Detect purple (top/upper block) — H ~276°, high S+V
-    purple_box = _detect_block(rgb, hue_lo=260, hue_hi=295, s_min=0.40, v_min=0.40)
-    if purple_box is None:
-        print(
-            f"WARN: purple block not detected in {frame_path}; "
-            "using fallback coordinates.",
-            file=sys.stderr,
+    if top_block_override is not None:
+        purple_box = tuple(top_block_override)
+    else:
+        # Detect TOP block — try purple (ai-invest), red (cn-finance), and
+        # other saturated accent colours. Picks the first hue range that hits.
+        purple_box = (
+            _detect_block(rgb, hue_lo=260, hue_hi=295, s_min=0.40, v_min=0.40)  # purple
+            or _detect_block(rgb, hue_lo=0,   hue_hi=15,  s_min=0.50, v_min=0.45)  # red
+            or _detect_block(rgb, hue_lo=345, hue_hi=360, s_min=0.50, v_min=0.45)  # red wrap
+            or _detect_block(rgb, hue_lo=190, hue_hi=230, s_min=0.50, v_min=0.45)  # teal/blue
         )
-        purple_box = _FALLBACK_PURPLE
+        if purple_box is None:
+            print(
+                f"WARN: top accent block not detected in {frame_path}; "
+                "using fallback coordinates.",
+                file=sys.stderr,
+            )
+            purple_box = _FALLBACK_PURPLE
 
-    # Detect gold/yellow (bottom block) — H ~43°, high S+V
-    gold_box = _detect_block(rgb, hue_lo=35, hue_hi=58, s_min=0.50, v_min=0.60)
-    if gold_box is None:
-        print(
-            f"WARN: gold block not detected in {frame_path}; "
-            "using fallback coordinates.",
-            file=sys.stderr,
-        )
-        gold_box = _FALLBACK_GOLD
+    if bottom_block_override is not None:
+        gold_box = tuple(bottom_block_override)
+    else:
+        # Detect gold/yellow (bottom block) — H ~43°, high S+V
+        gold_box = _detect_block(rgb, hue_lo=35, hue_hi=58, s_min=0.50, v_min=0.60)
+        if gold_box is None:
+            print(
+                f"WARN: gold block not detected in {frame_path}; "
+                "using fallback coordinates.",
+                file=sys.stderr,
+            )
+            gold_box = _FALLBACK_GOLD
 
     draw = ImageDraw.Draw(im)
     # Compute unified font size: take min of what each block can fit, so both
@@ -263,7 +277,20 @@ def build_for_episode(
     else:
         text_top = channel.brand_title
         text_bottom = ""
-    return compose_cover(frame_path, out_path, text_top, text_bottom)
+    # Pull manual block override from channel.yaml (helpful when frame has
+    # widespread accent color that confuses auto-detection)
+    top_override = None
+    bot_override = None
+    if channel.cover is not None:
+        if channel.cover.top_block:
+            top_override = tuple(channel.cover.top_block)
+        if channel.cover.bottom_block:
+            bot_override = tuple(channel.cover.bottom_block)
+    return compose_cover(
+        frame_path, out_path, text_top, text_bottom,
+        top_block_override=top_override,
+        bottom_block_override=bot_override,
+    )
 
 
 def _cli() -> int:

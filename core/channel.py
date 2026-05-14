@@ -19,6 +19,13 @@ class PublishConfig(BaseModel):
     base_tags: list[str]
 
 
+class CoverConfig(BaseModel):
+    """Optional manual override of cover-frame block coords (at 1920x1080).
+    Each block is [left, top, right, bottom] in pixels. If absent, auto-detect."""
+    top_block: Optional[list[int]] = None
+    bottom_block: Optional[list[int]] = None
+
+
 class Channel(BaseModel):
     id: str
     name: str
@@ -28,6 +35,7 @@ class Channel(BaseModel):
     bgm: str = ""
     sfx: str = ""
     publish: PublishConfig
+    cover: Optional[CoverConfig] = None
 
     # root path — set by loader, not from yaml; excluded from serialisation
     root: Path = Field(exclude=True, default=Path("."))
