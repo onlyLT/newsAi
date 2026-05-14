@@ -841,6 +841,21 @@ function dashboard() {
     },
 
     async doPublish() {
+      // Confirmation — publish is irreversible (B站 only allows withdraw before review passes)
+      const ch = this.channels.find(c => c.id === this.currentChannel);
+      const chName = ch ? ch.name : this.currentChannel;
+      const today = (new Date()).toISOString().slice(0, 10);
+      const dateWarn = (this.pubDate !== today) ? `\n\n⚠ 警告：你选的日期 ${this.pubDate} 不是今天 (${today})！确定要发吗？` : '';
+      const msg =
+        `即将发布到 B站：\n\n` +
+        `频道: ${chName}\n` +
+        `日期: ${this.pubDate}\n` +
+        `标题: ${this.pubMeta.title}\n\n` +
+        `此操作不可撤销（审核通过后只能下架不能完全删除）。继续？` +
+        dateWarn;
+      if (!confirm(msg)) {
+        return;
+      }
       this.pubBvid    = '';
       this.pubError   = '';
       this.pubLoading = true;
