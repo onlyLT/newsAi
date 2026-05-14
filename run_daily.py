@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import json
 import sys
 import traceback
 from datetime import datetime, timedelta
@@ -41,7 +42,7 @@ def _recent_curated_paths(settings: Settings, channel_id: str, date: str) -> lis
     return out
 
 
-_STAGE_ORDER = ["ingest", "curate", "script", "render_html", "render_video", "publish"]
+_STAGE_ORDER = ["ingest", "curate", "script", "render_html", "render_video", "cover", "publish"]
 
 
 def _run_channel(
@@ -123,7 +124,19 @@ def _run_channel(
                 episode=episode,
                 brand_title=channel.brand_title,
             ))
-        # Stage 6: optional B站 publish
+        # Stage 6: compose channel-branded cover image
+        if not _skip("cover"):
+            logger.info("stage.start", stage="cover")
+            try:
+                from pipelines.cover import build_for_episode
+                curated = json.loads((d / "curated.json").read_text(encoding="utf-8"))
+                build_for_episode(channel, curated, date, d / "cover.png")
+                logger.info("stage.done", stage="cover")
+            except Exception as cover_err:
+                # Cover failure isn't fatal — publish will fall back to toc.png
+                logger.warning("stage.cover_failed", error=str(cover_err))
+
+        # Stage 7: optional B站 publish
         published = False
         if settings.auto_publish and not _skip("publish"):
             logger.info("stage.start", stage="publish")

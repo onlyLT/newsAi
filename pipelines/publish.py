@@ -238,10 +238,12 @@ def run(
     else:
         meta = _build_metadata(curated, date, episode)
 
-    # Use the TOC frame as cover if available — it's a clean "目录 + 大标题"
-    # composition, much better than a random mid-video frame.
+    # Prefer per-channel composed cover; fall back to toc.png
+    composed_cover = video_path.parent / "cover.png"
     toc_cover = video_path.parent / "frames" / "toc.png"
-    if toc_cover.exists():
+    if composed_cover.exists():
+        meta["cover"] = str(composed_cover)
+    elif toc_cover.exists():
         meta["cover"] = str(toc_cover)
 
     # Write publish.json alongside the video for inspection

@@ -13,6 +13,9 @@ dist/
 # User-supplied SFX (e.g. SoundJay page-flip; license forbids redistribution)
 assets/page_turn.mp3
 
+# Channel brand assets — user-supplied, not redistributed with the repo
+channels/*/cover_frame.png
+
 # biliup session cookie — DO NOT commit. Bearer credential to your B站 account.
 cookies.json
 *.cookies.json
