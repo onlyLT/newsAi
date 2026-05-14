@@ -64,3 +64,52 @@ Unregister-ScheduledTask -TaskName "newsAi-daily" -Confirm:$false
 ```
 
 If a run fails, a Windows toast notification appears, and details are in `dist/YYYY-MM-DD/run.log`.
+
+## B站自动发布
+
+The pipeline can auto-upload each day's `video.mp4` to Bilibili using [biliup-rs](https://github.com/biliup/biliup-rs) (binary already placed at `.venv/Scripts/biliup.exe`).
+
+### One-time setup (login)
+
+Activate the venv, then scan the QR code that biliup prints in your terminal with the Bilibili app:
+
+```powershell
+.venv\Scripts\activate
+biliup login
+```
+
+Credentials are saved to `cookies.json` in the current directory. Keep this file out of git (it's already in `.gitignore`).
+
+### Enable auto-publish
+
+In your `.env`:
+
+```
+AUTO_PUBLISH=1
+```
+
+The publish stage runs after video rendering. If it fails, the run still counts as successful (the video exists locally); a separate toast notification is shown for the upload failure.
+
+### Dry-run a single day
+
+Builds metadata and writes `dist/YYYY-MM-DD/publish.json` without uploading:
+
+```powershell
+python -m pipelines.publish --date 2026-05-14 --dry-run
+```
+
+### Publish a single day manually
+
+```powershell
+python -m pipelines.publish --date 2026-05-14
+```
+
+### Metadata generated per episode
+
+| Field | Value |
+|-------|-------|
+| `tid` | 188 (科技 → 数码) |
+| `copyright` | 1 (自制) |
+| `title` | `AI 投资晨读 · M月D日 · 公司1/公司2/公司3 等 N 条` (≤ 80 chars) |
+| `desc` | 本期精选 N 条… + numbered titles + closing line (≤ 250 chars) |
+| `tag` | AI,投资,科技,日更,AI晨读,财经 + top company names (≤ 12 tags) |

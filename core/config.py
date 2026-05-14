@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     project_root: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent)
     timezone: str = "Asia/Shanghai"
     log_level: str = "INFO"
+    auto_publish: bool = False
 
     @property
     def dist_dir(self) -> Path:

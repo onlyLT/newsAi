@@ -13,6 +13,7 @@ from pipelines.curate import run as curate_run
 from pipelines.script import run as script_run
 from pipelines.render_html import render as html_render
 from pipelines.render_video import run as video_run
+from pipelines.publish import run as publish_run
 from pipelines.notify import notify
 
 
@@ -98,10 +99,36 @@ def main(argv: list[str] | None = None) -> int:
             sfx_path=sfx if sfx.exists() else None,
             date=date, episode=episode,
         ))
+        # ── Stage 6: optional B站 publish ────────────────────────────────────
+        published = False
+        if settings.auto_publish:
+            logger.info("stage.start", stage="publish")
+            try:
+                publish_run(
+                    video_path=d / "video.mp4",
+                    curated_path=d / "curated.json",
+                    date=date,
+                    episode=episode,
+                )
+                published = True
+                logger.info("stage.done", stage="publish")
+            except Exception as pub_err:
+                logger.error(
+                    "stage.fail",
+                    stage="publish",
+                    error=str(pub_err),
+                )
+                notify(
+                    title="AI 投资晨读 · 发布失败",
+                    message=f"{date} B站上传失败: {pub_err}",
+                    success=False,
+                )
+
         logger.info("run.success", date=date, episode=episode)
+        publish_note = "，已发布到 B站" if published else ""
         notify(
             title="AI 投资晨读 · 完成",
-            message=f"{date} 第 {episode} 期已生成",
+            message=f"{date} 第 {episode} 期已生成{publish_note}",
             success=True,
         )
         return 0
