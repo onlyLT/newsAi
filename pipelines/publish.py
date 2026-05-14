@@ -296,6 +296,11 @@ def _cli() -> int:
     )
     parser.add_argument("--date", required=True, help="Date in YYYY-MM-DD format")
     parser.add_argument(
+        "--channel",
+        default=None,
+        help="Channel ID under dist/{channel}/. If omitted, falls back to dist/{date}/ (legacy).",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Build metadata and write publish.json without uploading.",
@@ -304,7 +309,10 @@ def _cli() -> int:
 
     # Resolve paths relative to project root (two levels up from this file)
     project_root = Path(__file__).resolve().parent.parent
-    day_dir = project_root / "dist" / args.date
+    if args.channel:
+        day_dir = project_root / "dist" / args.channel / args.date
+    else:
+        day_dir = project_root / "dist" / args.date
     video_path = day_dir / "video.mp4"
     curated_path = day_dir / "curated.json"
 
@@ -315,11 +323,22 @@ def _cli() -> int:
         print(f"ERROR: curated.json not found at {curated_path}", file=sys.stderr)
         return 1
 
-    # Episode: count prior dirs that have video.mp4
+    # Load channel config if provided (for tid / title_prefix / base_tags)
+    channel_obj = None
+    if args.channel:
+        from core.channel import load_channel
+        channels_dir = project_root / "channels"
+        try:
+            channel_obj = load_channel(channels_dir, args.channel)
+        except FileNotFoundError as e:
+            print(f"ERROR: {e}", file=sys.stderr)
+            return 1
+
+    # Episode: count prior dirs (within this channel) that have video.mp4
     episode = 1
-    dist_dir = project_root / "dist"
-    if dist_dir.exists():
-        for d in dist_dir.iterdir():
+    scope_dir = (project_root / "dist" / args.channel) if args.channel else (project_root / "dist")
+    if scope_dir.exists():
+        for d in scope_dir.iterdir():
             if d.is_dir() and d.name < args.date and (d / "video.mp4").exists():
                 episode += 1
 
@@ -327,6 +346,7 @@ def _cli() -> int:
         video_path=video_path,
         curated_path=curated_path,
         date=args.date,
+        channel=channel_obj,
         episode=episode,
         dry_run=args.dry_run,
     )
