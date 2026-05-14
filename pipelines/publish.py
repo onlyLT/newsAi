@@ -18,7 +18,10 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    from core.channel import Channel
 
 
 # ---------------------------------------------------------------------------
@@ -93,13 +96,14 @@ def _hook(title: str, max_chars: int = 22) -> str:
     return title[:max_chars].rstrip() + "…"
 
 
-def _build_title(curated: list[dict], month: str, day: str) -> str:
+def _build_title(curated: list[dict], month: str, day: str,
+                 title_prefix: str = "早报") -> str:
     """
     Build a title in 橘鸦Juya / 小戴晨读 style: punchy hooks, no series branding.
-    Format: {M}/{D} 早报｜{hook1} · {hook2}[ · {hook3}]
+    Format: {M}/{D} {title_prefix}｜{hook1} · {hook2}[ · {hook3}]
     Uses "·" so titles containing "，" stay readable. Drops hooks until ≤ 80.
     """
-    prefix = f"{month}/{day} 早报｜"
+    prefix = f"{month}/{day} {title_prefix}｜"
     hooks = [_hook(item["title"]) for item in curated[:3]]
     while hooks:
         candidate = prefix + " · ".join(hooks)
@@ -111,14 +115,15 @@ def _build_title(curated: list[dict], month: str, day: str) -> str:
     return prefix
 
 
-def _build_desc(curated: list[dict], date: str) -> str:
+def _build_desc(curated: list[dict], date: str,
+                channel_name: str = "AI 投资晨读") -> str:
     """
     Build a short desc ≤ 250 chars. One line, hook-condensed titles, no
     boilerplate footer. Reads as human-curated — no "AI 自动生成" hint.
     """
     n = len(curated)
     hooks = [_hook(item["title"]) for item in curated]
-    opening = f"今天 {n} 条 AI 投资风向："
+    opening = f"今天 {n} 条{channel_name}要闻："
     closing = "。3 分钟看完。"
 
     full = opening + "、".join(hooks) + closing
@@ -140,14 +145,16 @@ def _build_desc(curated: list[dict], date: str) -> str:
     return (opening + closing)[:250]
 
 
-def _build_tags(curated: list[dict]) -> str:
+def _build_tags(curated: list[dict],
+                base_tags: list[str] | None = None) -> str:
     """
     Build a comma-separated tag string.
     Hot evergreen tags + day-specific company tags. Caps at 12.
-    Deliberately omits "AI晨读" — channel should not feel branded/bot.
+    Deliberately omits branded/bot-feeling tags.
     """
-    # Evergreen high-volume search terms in B站 财经/科技 区
-    base_tags = ["AI", "投资", "科技", "日更", "财经", "大模型", "ChatGPT", "OpenAI", "英伟达", "A股"]
+    # Fall back to ai-invest defaults when no base_tags passed
+    if base_tags is None:
+        base_tags = ["AI", "投资", "科技", "日更", "财经", "大模型", "ChatGPT", "OpenAI", "英伟达", "A股"]
     dynamic: list[str] = []
     seen: set[str] = set(base_tags)
 
@@ -168,7 +175,16 @@ def _build_tags(curated: list[dict]) -> str:
     return ",".join(all_tags[:12])
 
 
-def _build_metadata(curated: list[dict], date: str, episode: int) -> dict:
+def _build_metadata(
+    curated: list[dict],
+    date: str,
+    episode: int,
+    *,
+    tid: int = 188,
+    title_prefix: str = "早报",
+    base_tags: list[str] | None = None,
+    channel_name: str = "AI 投资晨读",
+) -> dict:
     """
     Build Bilibili upload metadata from curated news items.
 
@@ -178,17 +194,16 @@ def _build_metadata(curated: list[dict], date: str, episode: int) -> dict:
     parts = date.split("-")  # YYYY-MM-DD
     month = parts[1].lstrip("0")  # remove leading zero
     day = parts[2].lstrip("0")
-    n = len(curated)
 
-    title = _build_title(curated, month, day)
-    desc = _build_desc(curated, date)
-    tag = _build_tags(curated)
+    title = _build_title(curated, month, day, title_prefix=title_prefix)
+    desc = _build_desc(curated, date, channel_name=channel_name)
+    tag = _build_tags(curated, base_tags=base_tags)
 
     return {
         "title": title,
         "desc": desc,
         "tag": tag,
-        "tid": 188,       # 科技 > 数码
+        "tid": tid,
         "copyright": 1,   # 自制
         "cover": None,    # filled in by run() if frames/toc.png exists
     }
@@ -201,17 +216,27 @@ def run(
     date: str,
     episode: int,
     dry_run: bool = False,
+    channel: "Channel | None" = None,
 ) -> dict:
     """
     Build metadata and (unless dry_run) invoke biliup.exe to upload the video.
 
     Returns the metadata dict.
-    Writes dist/{date}/publish.json in all cases (useful for inspection).
+    Writes dist/{channel}/{date}/publish.json in all cases (useful for inspection).
     Raises RuntimeError if biliup not on PATH.
     Raises subprocess.CalledProcessError if biliup exits non-zero.
     """
     curated: list[dict] = json.loads(curated_path.read_text(encoding="utf-8"))
-    meta = _build_metadata(curated, date, episode)
+    if channel is not None:
+        meta = _build_metadata(
+            curated, date, episode,
+            tid=channel.publish.tid,
+            title_prefix=channel.publish.title_prefix,
+            base_tags=channel.publish.base_tags,
+            channel_name=channel.name,
+        )
+    else:
+        meta = _build_metadata(curated, date, episode)
 
     # Use the TOC frame as cover if available — it's a clean "目录 + 大标题"
     # composition, much better than a random mid-video frame.

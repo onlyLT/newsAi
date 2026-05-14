@@ -23,11 +23,13 @@ def render(
     templates_dir: Path,
     date: str,
     episode: int,
+    brand_title: str = "AI 投资晨读",
 ) -> Path:
     env = _make_env(templates_dir)
     tmpl = env.get_template("index.html.j2")
     items = _load_items(curated_path)
-    html = tmpl.render(items=items, date=date, episode=episode, mode="list")
+    html = tmpl.render(items=items, date=date, episode=episode, mode="list",
+                       brand_title=brand_title)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(html, encoding="utf-8")
     css_src = templates_dir / "styles.css"
@@ -45,6 +47,7 @@ def render_frame(
     episode: int,
     mode: str,  # "intro" | "outro" | "card"
     card_index: int | None = None,
+    brand_title: str = "AI 投资晨读",
 ) -> Path:
     env = _make_env(templates_dir)
     tmpl = env.get_template("index.html.j2")
@@ -58,6 +61,7 @@ def render_frame(
     html = tmpl.render(
         items=items, date=date, episode=episode,
         mode=mode, card_index=card_index or 0,
+        brand_title=brand_title,
     )
     out.write_text(html, encoding="utf-8")
     # Each frame HTML needs styles.css next to it (Playwright loads via file://).
@@ -70,19 +74,25 @@ def render_frame(
 
 def main():
     from core.config import Settings, day_dir, today_str
+    from core.channel import load_channel
     parser = argparse.ArgumentParser()
     parser.add_argument("--date", default=None)
     parser.add_argument("--episode", type=int, default=1)
+    parser.add_argument("--channel", default=None)
     args = parser.parse_args()
     settings = Settings()
     date = args.date or today_str(settings.timezone)
-    d = day_dir(settings, date)
+    channel_id = args.channel or settings.default_channel_id
+    channel = load_channel(settings.channels_dir, channel_id)
+    d = day_dir(settings, date, channel_id)
+    templates_dir = channel.templates_dir_override or settings.templates_dir
     render(
         curated_path=d / "curated.json",
         out_path=d / "index.html",
-        templates_dir=settings.templates_dir,
+        templates_dir=templates_dir,
         date=date,
         episode=args.episode,
+        brand_title=channel.brand_title,
     )
     print(f"wrote {d / 'index.html'}")
 

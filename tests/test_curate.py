@@ -40,7 +40,7 @@ def test_curate_writes_curated_json(tmp_path):
             out_path=out_path,
             recent_curated_paths=[FIX / "curated_sample.json"],
             api_key="x",
-            prompts_dir=Path(__file__).parent.parent / "prompts",
+            prompts_dir=Path(__file__).parent.parent / "channels" / "ai-invest" / "prompts",
         )
     data = json.loads(out_path.read_text(encoding="utf-8"))
     assert len(data) == 2
@@ -62,7 +62,7 @@ def test_curate_retries_once_on_invalid_then_succeeds(tmp_path):
             out_path=out_path,
             recent_curated_paths=[],
             api_key="x",
-            prompts_dir=Path(__file__).parent.parent / "prompts",
+            prompts_dir=Path(__file__).parent.parent / "channels" / "ai-invest" / "prompts",
         )
     assert fake_llm.complete_json.call_count == 2
     assert out_path.exists()

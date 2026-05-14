@@ -36,7 +36,7 @@ def test_script_writes_two_files(tmp_path):
             script_md_path=tmp_path / "script.md",
             segments_path=tmp_path / "segments.json",
             api_key="x",
-            prompts_dir=Path(__file__).parent.parent / "prompts",
+            prompts_dir=Path(__file__).parent.parent / "channels" / "ai-invest" / "prompts",
             date="2026-05-14",
         )
     assert (tmp_path / "script.md").exists()

@@ -1,0 +1,11 @@
+id: ai-invest
+name: AI 投资晨读
+brand_title: AI 投资晨读
+voice_id: Podcast_girl
+voice_speed: 1.1
+bgm: ""
+sfx: page_turn.mp3
+publish:
+  tid: 188
+  title_prefix: 早报
+  base_tags: [AI, 投资, 科技, 日更, 财经, 大模型, ChatGPT, OpenAI, 英伟达, A股]

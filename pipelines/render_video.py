@@ -203,6 +203,7 @@ async def run(
     sfx_path: Path | None = None,
     date: str,
     episode: int,
+    brand_title: str = "AI 投资晨读",
 ) -> Path:
     curated_path = day_dir / "curated.json"
     segments_path = day_dir / "segments.json"
@@ -217,7 +218,7 @@ async def run(
     frame_paths: dict[str, Path] = {}
     outro_html = render_frame(
         curated_path=curated_path, out_dir=frames_dir, templates_dir=templates_dir,
-        date=date, episode=episode, mode="outro",
+        date=date, episode=episode, mode="outro", brand_title=brand_title,
     )
     frame_paths["outro"] = frames_dir / "outro.png"
     await screenshot_html(outro_html, frame_paths["outro"])
@@ -229,7 +230,7 @@ async def run(
             toc_html = render_frame(
                 curated_path=curated_path, out_dir=frames_dir,
                 templates_dir=templates_dir,
-                date=date, episode=episode, mode="toc",
+                date=date, episode=episode, mode="toc", brand_title=brand_title,
             )
             png = frames_dir / "toc.png"
             await screenshot_html(toc_html, png)
@@ -240,6 +241,7 @@ async def run(
                 curated_path=curated_path, out_dir=frames_dir,
                 templates_dir=templates_dir,
                 date=date, episode=episode, mode="card", card_index=n - 1,
+                brand_title=brand_title,
             )
             png = frames_dir / f"card_{n:02d}.png"
             await screenshot_html(card_html, png)
@@ -284,24 +286,32 @@ async def run(
 
 def main():
     from core.config import Settings, day_dir as get_day_dir, today_str
+    from core.channel import load_channel
     parser = argparse.ArgumentParser()
     parser.add_argument("--date", default=None)
     parser.add_argument("--episode", type=int, default=1)
+    parser.add_argument("--channel", default=None)
     args = parser.parse_args()
     settings = Settings()
     date = args.date or today_str(settings.timezone)
-    d = get_day_dir(settings, date)
-    bgm = settings.assets_dir / "bgm.mp3"
-    sfx = settings.assets_dir / "page_turn.mp3"
+    channel_id = args.channel or settings.default_channel_id
+    channel = load_channel(settings.channels_dir, channel_id)
+    d = get_day_dir(settings, date, channel_id)
+    bgm_file = channel.bgm or "bgm.mp3"
+    sfx_file = channel.sfx or "page_turn.mp3"
+    bgm = settings.assets_dir / bgm_file
+    sfx = settings.assets_dir / sfx_file
+    templates_dir = channel.templates_dir_override or settings.templates_dir
     asyncio.run(run(
         day_dir=d,
-        templates_dir=settings.templates_dir,
+        templates_dir=templates_dir,
         tts_api_key=settings.minimax_api_key,
         tts_group_id=settings.minimax_group_id,
-        tts_voice_id=settings.minimax_voice_id,
+        tts_voice_id=channel.voice_id,
         bgm_path=bgm if bgm.exists() else None,
         sfx_path=sfx if sfx.exists() else None,
         date=date, episode=args.episode,
+        brand_title=channel.brand_title,
     ))
     print(f"wrote {d / 'video.mp4'}")
 

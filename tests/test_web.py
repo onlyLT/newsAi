@@ -21,13 +21,23 @@ from fastapi.testclient import TestClient
 
 def _make_fake_project(tmp_path: Path) -> Path:
     """Create a minimal fake project directory for isolation."""
-    # prompts
-    (tmp_path / "prompts").mkdir(exist_ok=True)
-    (tmp_path / "prompts" / "curate.system.md").write_text(
+    # channels/ai-invest with prompts
+    ai_invest_prompts = tmp_path / "channels" / "ai-invest" / "prompts"
+    ai_invest_prompts.mkdir(parents=True, exist_ok=True)
+    (ai_invest_prompts / "curate.system.md").write_text(
         "# Curate system prompt\nYou are a curator.", encoding="utf-8"
     )
-    (tmp_path / "prompts" / "script.system.md").write_text(
+    (ai_invest_prompts / "script.system.md").write_text(
         "# Script system prompt\nYou are a writer.", encoding="utf-8"
+    )
+    # channel.yaml for ai-invest
+    import yaml
+    (tmp_path / "channels" / "ai-invest" / "channel.yaml").write_text(
+        yaml.dump({
+            "id": "ai-invest", "name": "AI 投资晨读", "brand_title": "AI 投资晨读",
+            "voice_id": "Podcast_girl", "voice_speed": 1.1, "bgm": "", "sfx": "page_turn.mp3",
+            "publish": {"tid": 188, "title_prefix": "早报", "base_tags": ["AI", "投资"]},
+        }, allow_unicode=True), encoding="utf-8"
     )
     # dist (empty — episodes list may be [])
     (tmp_path / "dist").mkdir(exist_ok=True)
@@ -64,6 +74,24 @@ def test_root_returns_200_html(client):
     assert "<html" in resp.text.lower()
 
 
+def test_api_channels_returns_list(tmp_path, monkeypatch):
+    """GET /api/channels returns sorted channel IDs from channels/ dir."""
+    fake_root = _make_fake_project(tmp_path)
+    monkeypatch.setenv("PROJECT_ROOT", str(fake_root))
+
+    import importlib
+    import web.main as web_main
+    importlib.reload(web_main)
+
+    c = TestClient(web_main.app)
+    resp = c.get("/api/channels")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert isinstance(data, list)
+    # ai-invest was set up in _make_fake_project
+    assert "ai-invest" in data
+
+
 def test_api_episodes_empty(client):
     """GET /api/episodes returns a list (may be empty when dist/ has no dated dirs)."""
     resp = client.get("/api/episodes")
@@ -73,10 +101,11 @@ def test_api_episodes_empty(client):
 
 
 def test_api_episodes_with_data(tmp_path, monkeypatch):
-    """GET /api/episodes returns episode data when dist/ contains dated dirs."""
+    """GET /api/episodes returns episode data when dist/{channel}/ contains dated dirs."""
     fake_root = _make_fake_project(tmp_path)
     date = "2026-01-01"
-    day = fake_root / "dist" / date
+    # New layout: dist/ai-invest/date/
+    day = fake_root / "dist" / "ai-invest" / date
     day.mkdir(parents=True)
     # Write a minimal curated.json
     (day / "curated.json").write_text(
@@ -93,7 +122,7 @@ def test_api_episodes_with_data(tmp_path, monkeypatch):
     importlib.reload(web_main)
 
     c = TestClient(web_main.app)
-    resp = c.get("/api/episodes")
+    resp = c.get("/api/episodes?channel=ai-invest")
     assert resp.status_code == 200
     data = resp.json()
     assert len(data) == 1
@@ -123,7 +152,7 @@ def test_api_prompts_unknown_404(client):
 
 
 def test_put_prompt_saves_file(client, tmp_path, monkeypatch):
-    """PUT /api/prompts/curate with new content saves it to disk."""
+    """PUT /api/prompts/curate with new content saves it to disk (channel-aware)."""
     fake_root = _make_fake_project(tmp_path)
     monkeypatch.setenv("PROJECT_ROOT", str(fake_root))
 
@@ -133,12 +162,12 @@ def test_put_prompt_saves_file(client, tmp_path, monkeypatch):
 
     c = TestClient(web_main.app)
     new_content = "# Updated curate prompt\nNew instructions here."
-    resp = c.put("/api/prompts/curate", content=new_content.encode("utf-8"))
+    resp = c.put("/api/prompts/curate?channel=ai-invest", content=new_content.encode("utf-8"))
     assert resp.status_code == 200
     assert resp.json()["saved"] is True
 
-    # Verify the file was actually written
-    written = (fake_root / "prompts" / "curate.system.md").read_text(encoding="utf-8")
+    # Verify the file was actually written to channel prompts dir
+    written = (fake_root / "channels" / "ai-invest" / "prompts" / "curate.system.md").read_text(encoding="utf-8")
     assert written == new_content
 
 
@@ -202,9 +231,10 @@ def test_post_run_full_pipeline(tmp_path, monkeypatch):
 # Feature 2: Episode detail
 # ---------------------------------------------------------------------------
 
-def _make_episode_dir(base: Path, date: str, with_video: bool = False) -> Path:
+def _make_episode_dir(base: Path, date: str, with_video: bool = False,
+                      channel_id: str = "ai-invest") -> Path:
     """Create a minimal episode dir with enough files for detail tests."""
-    day = base / "dist" / date
+    day = base / "dist" / channel_id / date
     day.mkdir(parents=True, exist_ok=True)
 
     curated = [
@@ -245,7 +275,7 @@ def test_episode_detail_returns_data(tmp_path, monkeypatch):
     """GET /api/episodes/{date}/detail returns full detail including curated items."""
     fake_root = _make_fake_project(tmp_path)
     date = "2026-01-01"
-    _make_episode_dir(fake_root, date)
+    _make_episode_dir(fake_root, date, channel_id="ai-invest")
 
     monkeypatch.setenv("PROJECT_ROOT", str(fake_root))
 
@@ -254,7 +284,7 @@ def test_episode_detail_returns_data(tmp_path, monkeypatch):
     importlib.reload(web_main)
 
     c = TestClient(web_main.app)
-    resp = c.get(f"/api/episodes/{date}/detail")
+    resp = c.get(f"/api/episodes/{date}/detail?channel=ai-invest")
     assert resp.status_code == 200
     data = resp.json()
 
@@ -275,7 +305,7 @@ def test_episode_page_returns_html(tmp_path, monkeypatch):
     """GET /episodes/{date} returns 200 HTML with episode content."""
     fake_root = _make_fake_project(tmp_path)
     date = "2026-01-02"
-    _make_episode_dir(fake_root, date)
+    _make_episode_dir(fake_root, date, channel_id="ai-invest")
 
     monkeypatch.setenv("PROJECT_ROOT", str(fake_root))
 
@@ -284,7 +314,7 @@ def test_episode_page_returns_html(tmp_path, monkeypatch):
     importlib.reload(web_main)
 
     c = TestClient(web_main.app)
-    resp = c.get(f"/episodes/{date}")
+    resp = c.get(f"/episodes/{date}?channel=ai-invest")
     assert resp.status_code == 200
     assert "text/html" in resp.headers["content-type"]
     assert date in resp.text
@@ -340,10 +370,11 @@ def test_failed_banner_logic_detects_run_fail(tmp_path):
 
 
 def test_failed_stage_api_endpoint(tmp_path, monkeypatch):
-    """GET /api/run/{date}/failed-stage returns correct data."""
+    """GET /api/run/{date}/failed-stage returns correct data (channel-scoped)."""
     fake_root = _make_fake_project(tmp_path)
     date = "2026-03-01"
-    day = fake_root / "dist" / date
+    # New layout: dist/ai-invest/date/
+    day = fake_root / "dist" / "ai-invest" / date
     day.mkdir(parents=True)
     (day / "run.log").write_text(
         "stage.start stage=render_video\n",
@@ -356,7 +387,7 @@ def test_failed_stage_api_endpoint(tmp_path, monkeypatch):
     importlib.reload(web_main)
 
     c = TestClient(web_main.app)
-    resp = c.get(f"/api/run/{date}/failed-stage")
+    resp = c.get(f"/api/run/{date}/failed-stage?channel=ai-invest")
     assert resp.status_code == 200
     data = resp.json()
     assert data["failed_stage"] == "render_video"
@@ -369,9 +400,10 @@ def test_failed_stage_api_endpoint(tmp_path, monkeypatch):
 
 def _make_project_with_sources(tmp_path: Path) -> Path:
     fake_root = _make_fake_project(tmp_path)
-    sources_dir = fake_root / "sources"
-    sources_dir.mkdir(exist_ok=True)
-    (sources_dir / "sources.yaml").write_text(
+    # Channel-scoped sources (new layout)
+    ai_invest_dir = fake_root / "channels" / "ai-invest"
+    ai_invest_dir.mkdir(parents=True, exist_ok=True)
+    (ai_invest_dir / "sources.yaml").write_text(
         "sources:\n  - id: test_src\n    name: Test Source\n    type: rss\n"
         "    url: https://example.com/rss\n    lang: en\n    filter_keywords: []\n",
         encoding="utf-8",
@@ -380,7 +412,7 @@ def _make_project_with_sources(tmp_path: Path) -> Path:
 
 
 def test_sources_get(tmp_path, monkeypatch):
-    """GET /api/sources returns list of sources."""
+    """GET /api/sources?channel=ai-invest returns list of sources for that channel."""
     fake_root = _make_project_with_sources(tmp_path)
     monkeypatch.setenv("PROJECT_ROOT", str(fake_root))
 
@@ -389,7 +421,7 @@ def test_sources_get(tmp_path, monkeypatch):
     importlib.reload(web_main)
 
     c = TestClient(web_main.app)
-    resp = c.get("/api/sources")
+    resp = c.get("/api/sources?channel=ai-invest")
     assert resp.status_code == 200
     data = resp.json()
     assert isinstance(data, list)
@@ -398,7 +430,7 @@ def test_sources_get(tmp_path, monkeypatch):
 
 
 def test_sources_put(tmp_path, monkeypatch):
-    """PUT /api/sources overwrites sources.yaml."""
+    """PUT /api/sources?channel=ai-invest overwrites that channel's sources.yaml."""
     fake_root = _make_project_with_sources(tmp_path)
     monkeypatch.setenv("PROJECT_ROOT", str(fake_root))
 
@@ -413,19 +445,19 @@ def test_sources_put(tmp_path, monkeypatch):
         {"id": "src_b", "name": "Source B", "type": "rss",
          "url": "https://b.com/rss", "lang": "en", "filter_keywords": []},
     ]
-    resp = c.put("/api/sources", json=new_sources)
+    resp = c.put("/api/sources?channel=ai-invest", json=new_sources)
     assert resp.status_code == 200
     assert resp.json()["count"] == 2
 
     # Verify re-read
-    resp2 = c.get("/api/sources")
+    resp2 = c.get("/api/sources?channel=ai-invest")
     data = resp2.json()
     assert len(data) == 2
     assert data[0]["id"] == "src_a"
 
 
 def test_sources_test_mock_httpx(tmp_path, monkeypatch):
-    """POST /api/sources/test returns count and sample_titles (mock httpx)."""
+    """POST /api/sources/test returns count and sample_titles (mock httpx; channel-agnostic)."""
     fake_root = _make_project_with_sources(tmp_path)
     monkeypatch.setenv("PROJECT_ROOT", str(fake_root))
 
@@ -466,7 +498,7 @@ def test_sources_test_mock_httpx(tmp_path, monkeypatch):
 # Feature 7: Stats
 # ---------------------------------------------------------------------------
 
-def _make_stats_fixture(tmp_path: Path) -> Path:
+def _make_stats_fixture(tmp_path: Path, channel_id: str = "ai-invest") -> Path:
     """Create a fake project with two dist days for stats testing."""
     fake_root = _make_fake_project(tmp_path)
 
@@ -474,7 +506,7 @@ def _make_stats_fixture(tmp_path: Path) -> Path:
         ("2026-02-01", "stage.start stage=ingest\nrun.success date=2026-02-01"),
         ("2026-02-02", "stage.start stage=curate\nrun.fail error=oops"),
     ]:
-        day = fake_root / "dist" / date
+        day = fake_root / "dist" / channel_id / date
         day.mkdir(parents=True)
         (day / "run.log").write_text(status_line, encoding="utf-8")
         (day / "curated.json").write_text(json.dumps([
@@ -490,8 +522,8 @@ def _make_stats_fixture(tmp_path: Path) -> Path:
 
 
 def test_stats_endpoint(tmp_path, monkeypatch):
-    """GET /api/stats returns correct shape with daily array and rates."""
-    fake_root = _make_stats_fixture(tmp_path)
+    """GET /api/stats?channel=ai-invest returns correct shape with daily array and rates."""
+    fake_root = _make_stats_fixture(tmp_path, channel_id="ai-invest")
     monkeypatch.setenv("PROJECT_ROOT", str(fake_root))
 
     import importlib
@@ -499,7 +531,7 @@ def test_stats_endpoint(tmp_path, monkeypatch):
     importlib.reload(web_main)
 
     c = TestClient(web_main.app)
-    resp = c.get("/api/stats")
+    resp = c.get("/api/stats?channel=ai-invest")
     assert resp.status_code == 200
     data = resp.json()
 

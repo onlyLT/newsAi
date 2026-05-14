@@ -118,6 +118,47 @@ class TestBuildMetadataTruncatesLongTitle:
         assert len(tags) <= 12
 
 
+class TestBuildMetadataChannelConfig:
+    """_build_metadata respects channel-specific publish config."""
+
+    def test_cn_finance_tid(self):
+        meta = _build_metadata(
+            THREE_ITEMS, "2026-05-14", episode=1,
+            tid=95, title_prefix="财经早报",
+            base_tags=["财经", "A股", "投资"],
+            channel_name="中国财经早报",
+        )
+        assert meta["tid"] == 95
+
+    def test_cn_finance_title_prefix(self):
+        meta = _build_metadata(
+            THREE_ITEMS, "2026-05-14", episode=1,
+            tid=95, title_prefix="财经早报",
+            base_tags=["财经", "A股"],
+            channel_name="中国财经早报",
+        )
+        assert "财经早报" in meta["title"]
+        assert "5/14" in meta["title"]
+
+    def test_custom_base_tags_used(self):
+        meta = _build_metadata(
+            THREE_ITEMS, "2026-05-14", episode=1,
+            base_tags=["财经", "A股", "央行"],
+        )
+        tags = meta["tag"].split(",")
+        # First tags come from base_tags
+        assert tags[0] == "财经"
+        assert "A股" in tags
+
+    def test_title_within_limit_cn_finance(self):
+        meta = _build_metadata(
+            THREE_ITEMS, "2026-05-14", episode=1,
+            tid=95, title_prefix="财经早报",
+            base_tags=["财经", "A股"],
+        )
+        assert len(meta["title"]) <= 80
+
+
 class TestPublishRunDryRun:
     """publish.run with dry_run=True must not invoke biliup and must write publish.json."""
 

@@ -25,6 +25,17 @@ class Settings(BaseSettings):
         return self.project_root / "dist"
 
     @property
+    def channels_dir(self) -> Path:
+        return self.project_root / "channels"
+
+    @property
+    def default_channel_id(self) -> str:
+        from core.channel import list_channels
+        ids = list_channels(self.channels_dir)
+        return ids[0] if ids else "ai-invest"
+
+    # Backward-compat properties (point at top-level dirs; channels take precedence in new code)
+    @property
     def sources_yaml(self) -> Path:
         return self.project_root / "sources" / "sources.yaml"
 
@@ -45,8 +56,16 @@ def today_str(tz: str = "Asia/Shanghai") -> str:
     return datetime.now(ZoneInfo(tz)).strftime("%Y-%m-%d")
 
 
-def day_dir(settings: Settings, date: str) -> Path:
-    d = settings.dist_dir / date
+def day_dir(settings: Settings, date: str, channel_id: str = "") -> Path:
+    """Return (and create) the day output directory.
+
+    With multi-channel layout: dist/{channel_id}/{date}/
+    Falls back to dist/{date}/ when channel_id is empty (legacy).
+    """
+    if channel_id:
+        d = settings.dist_dir / channel_id / date
+    else:
+        d = settings.dist_dir / date
     (d / "audio").mkdir(parents=True, exist_ok=True)
     (d / "frames").mkdir(parents=True, exist_ok=True)
     return d

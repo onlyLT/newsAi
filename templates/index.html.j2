@@ -2,14 +2,14 @@
 <html lang="zh">
 <head>
   <meta charset="UTF-8" />
-  <title>{{ date }} · AI 投资晨读</title>
+  <title>{{ date }} · {{ brand_title or "AI 投资晨读" }}</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
 {% if mode == "intro" %}
   <div class="frame-intro">
     <div style="text-align:center">
-      <h1>AI 投资晨读</h1>
+      <h1>{{ brand_title or "AI 投资晨读" }}</h1>
       <div class="sub">{{ date }} · 第 {{ episode }} 期</div>
     </div>
   </div>
@@ -23,7 +23,7 @@
 {% elif mode == "toc" %}
   <div class="frame-toc">
     <div class="toc-inner">
-      <h2>今日 {{ items|length }} 条 · AI 投资晨读</h2>
+      <h2>今日 {{ items|length }} 条 · {{ brand_title or "AI 投资晨读" }}</h2>
       <ol class="toc-list">
         {% for item in items %}
           <li><span class="toc-rank">{{ "%02d"|format(item.rank) }}</span><span class="toc-title">{{ item.title }}</span></li>
@@ -47,7 +47,7 @@
 {% else %}
   <div class="page-list">
     <header>
-      <h1>AI 投资晨读</h1>
+      <h1>{{ brand_title or "AI 投资晨读" }}</h1>
       <div class="meta">{{ date }} · 第 {{ episode }} 期 · 共 {{ items|length }} 条</div>
     </header>
     {% for item in items %}
