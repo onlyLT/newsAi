@@ -16,17 +16,27 @@
 
 <!-- ── Header / Nav ─────────────────────────────────────────────────── -->
 <header class="app-header">
-  <span class="logo">🎙 NewsAI</span>
-  <nav>
-    <ul class="nav-tabs">
-      <li><button :class="{active: tab==='dashboard'}" @click="tab='dashboard'">Dashboard</button></li>
-      <li><button :class="{active: tab==='run'}"       @click="tab='run';     initRun()">Run</button></li>
-      <li><button :class="{active: tab==='prompts'}"   @click="tab='prompts'; loadPrompt()">Prompts</button></li>
-      <li><button :class="{active: tab==='sources'}"   @click="tab='sources'; loadSources()">Sources</button></li>
-      <li><button :class="{active: tab==='publish'}"   @click="tab='publish'; loadPublish()">Publish</button></li>
-      <li><button :class="{active: tab==='stats'}"     @click="tab='stats';   loadStats()">Stats</button></li>
-    </ul>
-  </nav>
+  <div class="app-header-left">
+    <span class="logo">🎙 NewsAI</span>
+    <nav>
+      <ul class="nav-tabs">
+        <li><button :class="{active: tab==='dashboard'}" @click="tab='dashboard'">Dashboard</button></li>
+        <li><button :class="{active: tab==='run'}"       @click="tab='run';     initRun()">Run</button></li>
+        <li><button :class="{active: tab==='prompts'}"   @click="tab='prompts'; loadPrompt()">Prompts</button></li>
+        <li><button :class="{active: tab==='sources'}"   @click="tab='sources'; loadSources()">Sources</button></li>
+        <li><button :class="{active: tab==='publish'}"   @click="tab='publish'; loadPublish()">Publish</button></li>
+        <li><button :class="{active: tab==='stats'}"     @click="tab='stats';   loadStats()">Stats</button></li>
+      </ul>
+    </nav>
+  </div>
+  <label class="channel-switcher">
+    频道:
+    <select x-model="currentChannel" @change="onChannelChange()">
+      <template x-for="ch in channels" :key="ch.id">
+        <option :value="ch.id" x-text="ch.name"></option>
+      </template>
+    </select>
+  </label>
 </header>
 
 <main class="page-content">
@@ -35,19 +45,18 @@
   <section class="panel" :class="{active: tab==='dashboard'}">
 
     <!-- Today's episode -->
-    <div class="section-title">今日 — {{ today }}</div>
+    <div class="section-title" x-text="'今日 — ' + today"></div>
     <div class="section-sub">Today's episode</div>
 
     <!-- ── Failed-stage retry banner ────────────────────────────────── -->
-    {% if today_failed_stage %}
-    <div class="retry-banner" x-data="retryBanner()">
+    <div class="retry-banner" x-data="retryBanner()" x-show="failedStage" style="display:none">
       <div class="retry-banner-text">
-        ⚠ 今天的 run 在 <strong>{{ today_failed_stage }}</strong> 阶段失败 / 卡住
+        ⚠ 今天的 run 在 <strong x-text="failedStage"></strong> 阶段失败 / 卡住
       </div>
       <div class="retry-banner-actions">
-        <button class="btn btn-danger btn-sm" :disabled="retryRunning" @click="retryFrom('{{ today_failed_stage }}')">
+        <button class="btn btn-danger btn-sm" :disabled="retryRunning" @click="retryFrom(failedStage)">
           <span x-show="retryRunning" class="spinner"></span>
-          Retry from {{ today_failed_stage }}
+          Retry from <span x-text="failedStage"></span>
         </button>
         <button class="btn btn-ghost btn-sm" @click="showRetryLog=!showRetryLog">
           <span x-text="showRetryLog?'Hide log':'View log'"></span>
@@ -55,106 +64,113 @@
       </div>
       <div x-show="retryMsg" style="font-size:.82rem;color:var(--success);margin-top:.5rem" x-text="retryMsg"></div>
       <div x-show="retryError" style="font-size:.82rem;color:var(--danger);margin-top:.5rem" x-text="retryError"></div>
-      <div x-show="showRetryLog" class="retry-log">{{ '\n'.join(retry_log_tail) }}</div>
+      <div x-show="showRetryLog" class="retry-log" x-text="retryLogTail"></div>
     </div>
-    {% endif %}
 
-    {% if today_ep %}
-    <div class="card" style="margin-bottom:1.5rem">
-      <div class="today-grid">
-        <div class="today-video">
-          {% if today_ep.has_video %}
-          <video controls preload="metadata">
-            <source src="/dist/{{ today }}/video.mp4" type="video/mp4">
-            Your browser does not support HTML5 video.
-          </video>
-          {% else %}
-          <div style="background:var(--surface2);border-radius:var(--radius);aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:.85rem;">
-            No video yet
+    <!-- Today card (Alpine-rendered) -->
+    <template x-if="todayEp">
+      <div class="card" style="margin-bottom:1.5rem">
+        <div class="today-grid">
+          <div class="today-video">
+            <template x-if="todayEp.has_video">
+              <video controls preload="metadata">
+                <source :src="`/dist/${currentChannel}/${today}/video.mp4`" type="video/mp4">
+                Your browser does not support HTML5 video.
+              </video>
+            </template>
+            <template x-if="!todayEp.has_video">
+              <div style="background:var(--surface2);border-radius:var(--radius);aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:.85rem;">
+                No video yet
+              </div>
+            </template>
           </div>
-          {% endif %}
-        </div>
-        <div class="today-info">
-          <div class="info-row">
-            <span class="label">Items</span>
-            <span>{{ today_ep.item_count or '—' }}</span>
-          </div>
-          <div class="info-row">
-            <span class="label">Video size</span>
-            <span>{% if today_ep.video_size_kb %}{{ "%.1f"|format(today_ep.video_size_kb / 1024) }} MB{% else %}—{% endif %}</span>
-          </div>
-          <div class="info-row">
-            <span class="label">Run status</span>
-            <span>
-              {% if today_ep.status == 'success' %}
-              <span class="badge badge-success">✅ Success</span>
-              {% elif today_ep.status == 'failed' %}
-              <span class="badge badge-danger">❌ Failed</span>
-              {% else %}
-              <span class="badge badge-muted">— Unknown</span>
-              {% endif %}
-            </span>
-          </div>
-          {% if today_ep.bvid %}
-          <div class="info-row">
-            <span class="label">B站</span>
-            <a href="https://www.bilibili.com/video/{{ today_ep.bvid }}" target="_blank" class="badge badge-accent">
-              {{ today_ep.bvid }}
-            </a>
-          </div>
-          {% endif %}
-          <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.5rem">
-            {% if today_ep.has_html %}
-            <a href="/dist/{{ today }}/index.html" target="_blank" class="btn btn-ghost btn-sm">
-              📄 Open HTML report
-            </a>
-            {% endif %}
-            <a href="/episodes/{{ today }}" class="btn btn-ghost btn-sm">
-              🔍 Detail
-            </a>
+          <div class="today-info">
+            <div class="info-row">
+              <span class="label">Items</span>
+              <span x-text="todayEp.item_count || '—'"></span>
+            </div>
+            <div class="info-row">
+              <span class="label">Video size</span>
+              <span x-text="todayEp.video_size_kb ? (todayEp.video_size_kb / 1024).toFixed(1) + ' MB' : '—'"></span>
+            </div>
+            <div class="info-row">
+              <span class="label">Run status</span>
+              <span>
+                <template x-if="todayEp.status === 'success'">
+                  <span class="badge badge-success">✅ Success</span>
+                </template>
+                <template x-if="todayEp.status === 'failed'">
+                  <span class="badge badge-danger">❌ Failed</span>
+                </template>
+                <template x-if="todayEp.status !== 'success' && todayEp.status !== 'failed'">
+                  <span class="badge badge-muted">— Unknown</span>
+                </template>
+              </span>
+            </div>
+            <template x-if="todayEp.bvid">
+              <div class="info-row">
+                <span class="label">B站</span>
+                <a :href="`https://www.bilibili.com/video/${todayEp.bvid}`" target="_blank" class="badge badge-accent" x-text="todayEp.bvid"></a>
+              </div>
+            </template>
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.5rem">
+              <template x-if="todayEp.has_html">
+                <a :href="`/dist/${currentChannel}/${today}/index.html`" target="_blank" class="btn btn-ghost btn-sm">
+                  📄 Open HTML report
+                </a>
+              </template>
+              <a :href="`/episodes/${today}?channel=${currentChannel}`" class="btn btn-ghost btn-sm">
+                🔍 Detail
+              </a>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-    {% else %}
-    <div class="card" style="margin-bottom:1.5rem;color:var(--muted);text-align:center;padding:2rem;">
-      No episode for {{ today }} yet.
-      <a href="#" @click.prevent="tab='run'; initRun()" style="color:var(--accent);margin-left:.5rem">Run pipeline →</a>
-    </div>
-    {% endif %}
+    </template>
+
+    <template x-if="!todayEp && !episodesLoading">
+      <div class="card" style="margin-bottom:1.5rem;color:var(--muted);text-align:center;padding:2rem;">
+        No episode for <span x-text="today"></span> yet.
+        <a href="#" @click.prevent="tab='run'; initRun()" style="color:var(--accent);margin-left:.5rem">Run pipeline →</a>
+      </div>
+    </template>
 
     <!-- Past 30 days grid -->
     <div class="section-title" style="font-size:.95rem">Past episodes</div>
-    <div class="episodes-grid">
-      {% for ep in episodes %}
-      <a
-        href="/episodes/{{ ep.date }}"
-        class="ep-card"
-      >
-        <div class="ep-date">{{ ep.date }}</div>
-        <div class="ep-meta">
-          {% if ep.item_count %}{{ ep.item_count }} items{% else %}—{% endif %}<br>
-          {% if ep.video_size_kb %}{{ "%.1f"|format(ep.video_size_kb / 1024) }} MB{% else %}no video{% endif %}
+    <div class="episodes-grid" x-show="!episodesLoading">
+      <template x-for="ep in episodes" :key="ep.date">
+        <a
+          :href="`/episodes/${ep.date}?channel=${currentChannel}`"
+          class="ep-card"
+        >
+          <div class="ep-date" x-text="ep.date"></div>
+          <div class="ep-meta">
+            <span x-text="ep.item_count ? ep.item_count + ' items' : '—'"></span><br>
+            <span x-text="ep.video_size_kb ? (ep.video_size_kb / 1024).toFixed(1) + ' MB' : 'no video'"></span>
+          </div>
+          <div class="ep-badges">
+            <template x-if="ep.status === 'success'">
+              <span class="badge badge-success">✅</span>
+            </template>
+            <template x-if="ep.status === 'failed'">
+              <span class="badge badge-danger">❌</span>
+            </template>
+            <template x-if="ep.status !== 'success' && ep.status !== 'failed'">
+              <span class="badge badge-muted">?</span>
+            </template>
+            <template x-if="ep.bvid">
+              <span class="badge badge-accent">📺</span>
+            </template>
+          </div>
+        </a>
+      </template>
+      <template x-if="episodes.length === 0 && !episodesLoading">
+        <div style="color:var(--muted);grid-column:1/-1;text-align:center;padding:2rem;">
+          No episodes found in dist/<span x-text="currentChannel"></span>/
         </div>
-        <div class="ep-badges">
-          {% if ep.status == 'success' %}
-          <span class="badge badge-success">✅</span>
-          {% elif ep.status == 'failed' %}
-          <span class="badge badge-danger">❌</span>
-          {% else %}
-          <span class="badge badge-muted">?</span>
-          {% endif %}
-          {% if ep.bvid %}
-          <span class="badge badge-accent">📺</span>
-          {% endif %}
-        </div>
-      </a>
-      {% else %}
-      <div style="color:var(--muted);grid-column:1/-1;text-align:center;padding:2rem;">
-        No episodes found in dist/
-      </div>
-      {% endfor %}
+      </template>
     </div>
+    <div x-show="episodesLoading" style="color:var(--muted);padding:2rem 0">Loading episodes…</div>
   </section>
 
   <!-- ══ Panel 3: Run trigger ════════════════════════════════════════ -->
@@ -365,7 +381,7 @@
             <div class="field-label" style="margin-bottom:.5rem">Cover</div>
             <template x-if="pubMeta.cover">
               <img
-                :src="pubMeta.cover.startsWith('/dist/') ? pubMeta.cover : '/dist/' + pubDate + '/frames/toc.png'"
+                :src="pubMeta.cover.startsWith('/dist/') ? pubMeta.cover : `/dist/${currentChannel}/${pubDate}/frames/toc.png`"
                 class="cover-img"
                 alt="cover"
                 @error="$el.style.display='none'"
@@ -483,15 +499,21 @@ function retryBanner() {
     retryError: '',
     showRetryLog: false,
 
+    // failedStage and retryLogTail are set by the parent dashboard() after loadEpisodes()
+    get failedStage() { return this.$root._retryFailedStage || ''; },
+    get retryLogTail() { return this.$root._retryLogTail || ''; },
+
     async retryFrom(stage) {
       this.retryMsg = '';
       this.retryError = '';
       this.retryRunning = true;
       try {
+        const channel = this.$root.currentChannel;
+        const today   = this.$root.today;
         const res = await fetch('/api/run', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ date: '{{ today }}', start_stage: stage }),
+          body: JSON.stringify({ date: today, start_stage: stage, channel }),
         });
         const d = await res.json();
         if (!res.ok) { this.retryError = d.detail || JSON.stringify(d); return; }
@@ -507,17 +529,144 @@ function retryBanner() {
 
 function dashboard() {
   return {
-    tab: 'dashboard',
-    today: '{{ today }}',
+    tab: localStorage.getItem('tab') || 'dashboard',
+    today: '',
+    currentChannel: localStorage.getItem('channel') || '',
+    channels: [],
+
+    // Dashboard panel state
+    episodes: [],
+    episodesLoading: false,
+    todayEp: null,
+    _retryFailedStage: '',
+    _retryLogTail: '',
 
     // ── Run panel ─────────────────────────────────────────────────
-    runDate: '{{ today }}',
+    runDate: '',
     runStage: 'script',
     running: false,
     logLines: [],
     logSource: null,
     runMsg: '',
     runError: '',
+
+    // ── Prompts panel ─────────────────────────────────────────────
+    promptTab: 'curate',
+    promptContent: '',
+    promptSaving: false,
+    promptMsg: '',
+    promptError: '',
+
+    // ── Sources panel ─────────────────────────────────────────────
+    sources: [],
+    sourcesSaving: false,
+    sourcesMsg: '',
+    sourcesError: '',
+    testResults: {},
+
+    // ── Publish panel ─────────────────────────────────────────────
+    pubDate: '',
+    pubMeta: null,
+    pubLoading: false,
+    pubBvid: '',
+    pubError: '',
+
+    // ── Stats panel ───────────────────────────────────────────────
+    statsData: null,
+    statsLoading: false,
+    statsError: '',
+    _chartsBuilt: false,
+
+    // ── Channel helpers ───────────────────────────────────────────
+
+    /** Build an API URL and append ?channel=<currentChannel> */
+    _apiUrl(path) {
+      const sep = path.includes('?') ? '&' : '?';
+      return `${path}${sep}channel=${this.currentChannel}`;
+    },
+
+    _persistChannel() {
+      localStorage.setItem('channel', this.currentChannel);
+      const url = new URL(window.location);
+      url.searchParams.set('channel', this.currentChannel);
+      window.history.replaceState({}, '', url);
+    },
+
+    async onChannelChange() {
+      this._persistChannel();
+      // Reset stats so charts are rebuilt for the new channel
+      this.statsData = null;
+      this._chartsBuilt = false;
+      await this.loadEpisodes();
+      // Reload whatever tab is currently active
+      if (this.tab === 'prompts')  this.loadPrompt();
+      if (this.tab === 'sources')  this.loadSources();
+      if (this.tab === 'publish')  this.loadPublish();
+      if (this.tab === 'stats')    this.loadStats();
+    },
+
+    // ── Init ──────────────────────────────────────────────────────
+    async init() {
+      // Derive today from server-side Jinja (fast, no extra fetch)
+      this.today = '{{ today }}';
+      this.runDate  = this.today;
+      this.pubDate  = this.today;
+
+      // Load channel list
+      try {
+        const r = await fetch('/api/channels');
+        this.channels = await r.json();
+      } catch(e) {
+        this.channels = [];
+      }
+
+      // Resolve initial channel: URL param > localStorage > first channel
+      const params = new URLSearchParams(window.location.search);
+      const urlChannel = params.get('channel');
+      if (urlChannel && this.channels.find(c => c.id === urlChannel)) {
+        this.currentChannel = urlChannel;
+      } else if (!this.currentChannel && this.channels.length) {
+        this.currentChannel = this.channels[0].id;
+      } else if (!this.channels.find(c => c.id === this.currentChannel) && this.channels.length) {
+        this.currentChannel = this.channels[0].id;
+      }
+      this._persistChannel();
+
+      await this.loadEpisodes();
+    },
+
+    // ── Episodes (Dashboard panel) ────────────────────────────────
+
+    async loadEpisodes() {
+      this.episodesLoading = true;
+      this.todayEp = null;
+      this.episodes = [];
+      this._retryFailedStage = '';
+      this._retryLogTail = '';
+      try {
+        const res = await fetch(this._apiUrl('/api/episodes'));
+        if (!res.ok) return;
+        const list = await res.json();
+        this.episodes = list;
+        this.todayEp  = list.find(e => e.date === this.today) || null;
+
+        // Check failed-stage for today's banner
+        if (!this.todayEp || this.todayEp.status !== 'success') {
+          try {
+            const fr = await fetch(this._apiUrl(`/api/run/${this.today}/failed-stage`));
+            if (fr.ok) {
+              const fd = await fr.json();
+              this._retryFailedStage = fd.failed_stage || '';
+              this._retryLogTail = (fd.log_tail || []).join('\n');
+            }
+          } catch(e) { /* ignore */ }
+        }
+      } catch(e) {
+        // silently fail — episodes will be empty
+      } finally {
+        this.episodesLoading = false;
+      }
+    },
 
     initRun() {
       this.runDate = this.today;
@@ -529,7 +678,7 @@ function dashboard() {
       this.logLines = [];
       if (this.logSource) { this.logSource.close(); this.logSource = null; }
 
-      const body = { date: this.runDate };
+      const body = { date: this.runDate, channel: this.currentChannel };
       if (stage) body.stage = stage;
 
       try {
@@ -553,7 +702,7 @@ function dashboard() {
 
     startLogStream(date) {
       if (this.logSource) this.logSource.close();
-      this.logSource = new EventSource(`/api/run/${date}/log/stream`);
+      this.logSource = new EventSource(this._apiUrl(`/api/run/${date}/log/stream`));
       this.logSource.onmessage = (e) => {
         this.logLines.push(e.data);
         const panel = this.$refs.logPanel;
@@ -569,18 +718,11 @@ function dashboard() {
       };
     },
 
-    // ── Prompts panel ─────────────────────────────────────────────
-    promptTab: 'curate',
-    promptContent: '',
-    promptSaving: false,
-    promptMsg: '',
-    promptError: '',
-
     async loadPrompt() {
       this.promptMsg   = '';
       this.promptError = '';
       try {
-        const res = await fetch(`/api/prompts/${this.promptTab}`);
+        const res = await fetch(this._apiUrl(`/api/prompts/${this.promptTab}`));
         this.promptContent = await res.text();
       } catch(e) {
         this.promptError = String(e);
@@ -592,7 +734,7 @@ function dashboard() {
       this.promptError = '';
       this.promptSaving = true;
       try {
-        const res = await fetch(`/api/prompts/${this.promptTab}`, {
+        const res = await fetch(this._apiUrl(`/api/prompts/${this.promptTab}`), {
           method: 'PUT',
           body: this.promptContent,
         });
@@ -606,7 +748,7 @@ function dashboard() {
           const r2 = await fetch('/api/run', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ date: this.today, stage: 'script' }),
+            body: JSON.stringify({ date: this.today, stage: 'script', channel: this.currentChannel }),
           });
           const d2 = await r2.json();
           if (!r2.ok) {
@@ -622,19 +764,12 @@ function dashboard() {
       }
     },
 
-    // ── Sources panel ─────────────────────────────────────────────
-    sources: [],
-    sourcesSaving: false,
-    sourcesMsg: '',
-    sourcesError: '',
-    testResults: {},
-
     async loadSources() {
       this.sourcesMsg = '';
       this.sourcesError = '';
       this.testResults = {};
       try {
-        const res = await fetch('/api/sources');
+        const res = await fetch(this._apiUrl('/api/sources'));
         if (!res.ok) { this.sourcesError = 'Failed to load sources'; return; }
         this.sources = await res.json();
       } catch(e) {
@@ -647,7 +782,7 @@ function dashboard() {
       this.sourcesError = '';
       this.sourcesSaving = true;
       try {
-        const res = await fetch('/api/sources', {
+        const res = await fetch(this._apiUrl('/api/sources'), {
           method: 'PUT',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify(this.sources),
@@ -685,20 +820,13 @@ function dashboard() {
       }
     },
 
-    // ── Publish panel ─────────────────────────────────────────────
-    pubDate: '{{ today }}',
-    pubMeta: null,
-    pubLoading: false,
-    pubBvid: '',
-    pubError: '',
-
     async loadPublish() {
       this.pubMeta    = null;
       this.pubBvid    = '';
       this.pubError   = '';
       this.pubLoading = true;
       try {
-        const res = await fetch(`/api/publish/${this.pubDate}/preview`);
+        const res = await fetch(this._apiUrl(`/api/publish/${this.pubDate}/preview`));
         if (!res.ok) {
           const d = await res.json().catch(() => ({}));
           this.pubError = d.detail || 'Failed to load preview';
@@ -717,7 +845,7 @@ function dashboard() {
       this.pubError   = '';
       this.pubLoading = true;
       try {
-        const res = await fetch(`/api/publish/${this.pubDate}`, {
+        const res = await fetch(this._apiUrl(`/api/publish/${this.pubDate}`), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(this.pubMeta),
@@ -740,18 +868,12 @@ function dashboard() {
       }
     },
 
-    // ── Stats panel ───────────────────────────────────────────────
-    statsData: null,
-    statsLoading: false,
-    statsError: '',
-    _chartsBuilt: false,
-
     async loadStats() {
-      if (this.statsData) return; // already loaded
+      if (this.statsData) return; // already loaded for this channel
       this.statsLoading = true;
       this.statsError   = '';
       try {
-        const res = await fetch('/api/stats');
+        const res = await fetch(this._apiUrl('/api/stats'));
         if (!res.ok) { this.statsError = 'Failed to load stats'; return; }
         this.statsData = await res.json();
         await this.$nextTick();
@@ -771,6 +893,9 @@ function dashboard() {
       // Daily metrics — bar + lines
       const dailyCtx = document.getElementById('dailyChart');
       if (dailyCtx) {
+        // Destroy existing chart if any
+        const existing = Chart.getChart(dailyCtx);
+        if (existing) existing.destroy();
         new Chart(dailyCtx, {
           data: {
             labels,
@@ -822,6 +947,8 @@ function dashboard() {
       // Donut — success rate
       const donutCtx = document.getElementById('donutChart');
       if (donutCtx) {
+        const existing = Chart.getChart(donutCtx);
+        if (existing) existing.destroy();
         const success   = daily.filter(d => d.success).length;
         const failed    = daily.filter(d => d.failed).length;
         const unfinished = daily.filter(d => !d.success && !d.failed).length;
@@ -845,11 +972,6 @@ function dashboard() {
       }
 
       this._chartsBuilt = true;
-    },
-
-    // ── Init ──────────────────────────────────────────────────────
-    init() {
-      // nothing needed at startup; panels load on tab switch
     },
   };
 }

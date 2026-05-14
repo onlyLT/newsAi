@@ -363,9 +363,17 @@ async def get_failed_stage(date: str, channel: Optional[str] = Query(default=Non
 # ---------------------------------------------------------------------------
 
 @app.get("/api/channels")
-async def get_channels():
-    """Return list of available channel IDs."""
-    return _get_channel_ids()
+async def list_all_channels():
+    """Return list of available channels with id, name, and brand_title."""
+    from core.channel import list_channels, load_channel
+    out = []
+    for cid in list_channels(CHANNELS_DIR):
+        try:
+            ch = load_channel(CHANNELS_DIR, cid)
+            out.append({"id": ch.id, "name": ch.name, "brand_title": ch.brand_title})
+        except Exception:
+            continue
+    return out
 
 
 # ---------------------------------------------------------------------------

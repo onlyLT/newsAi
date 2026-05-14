@@ -21,6 +21,8 @@ from fastapi.testclient import TestClient
 
 def _make_fake_project(tmp_path: Path) -> Path:
     """Create a minimal fake project directory for isolation."""
+    import yaml
+
     # channels/ai-invest with prompts
     ai_invest_prompts = tmp_path / "channels" / "ai-invest" / "prompts"
     ai_invest_prompts.mkdir(parents=True, exist_ok=True)
@@ -31,7 +33,6 @@ def _make_fake_project(tmp_path: Path) -> Path:
         "# Script system prompt\nYou are a writer.", encoding="utf-8"
     )
     # channel.yaml for ai-invest
-    import yaml
     (tmp_path / "channels" / "ai-invest" / "channel.yaml").write_text(
         yaml.dump({
             "id": "ai-invest", "name": "AI 投资晨读", "brand_title": "AI 投资晨读",
@@ -39,6 +40,18 @@ def _make_fake_project(tmp_path: Path) -> Path:
             "publish": {"tid": 188, "title_prefix": "早报", "base_tags": ["AI", "投资"]},
         }, allow_unicode=True), encoding="utf-8"
     )
+
+    # channels/cn-finance (second channel for switcher tests)
+    cn_finance_dir = tmp_path / "channels" / "cn-finance"
+    cn_finance_dir.mkdir(parents=True, exist_ok=True)
+    (cn_finance_dir / "channel.yaml").write_text(
+        yaml.dump({
+            "id": "cn-finance", "name": "中国财经早报", "brand_title": "中国财经早报",
+            "voice_id": "Podcast_girl", "voice_speed": 1.1, "bgm": "", "sfx": "page_turn.mp3",
+            "publish": {"tid": 95, "title_prefix": "财经早报", "base_tags": ["财经", "A股"]},
+        }, allow_unicode=True), encoding="utf-8"
+    )
+
     # dist (empty — episodes list may be [])
     (tmp_path / "dist").mkdir(exist_ok=True)
     return tmp_path
@@ -88,8 +101,38 @@ def test_api_channels_returns_list(tmp_path, monkeypatch):
     assert resp.status_code == 200
     data = resp.json()
     assert isinstance(data, list)
-    # ai-invest was set up in _make_fake_project
-    assert "ai-invest" in data
+    # ai-invest was set up in _make_fake_project; now returns objects not ids
+    ids = [ch["id"] for ch in data]
+    assert "ai-invest" in ids
+
+
+def test_list_channels_endpoint(tmp_path, monkeypatch):
+    """GET /api/channels returns [{id, name, brand_title}, ...] for all channels."""
+    fake_root = _make_fake_project(tmp_path)
+    monkeypatch.setenv("PROJECT_ROOT", str(fake_root))
+
+    import importlib
+    import web.main as web_main
+    importlib.reload(web_main)
+
+    c = TestClient(web_main.app)
+    resp = c.get("/api/channels")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert isinstance(data, list)
+    assert len(data) == 2  # ai-invest + cn-finance
+
+    by_id = {ch["id"]: ch for ch in data}
+    assert "ai-invest" in by_id
+    assert "cn-finance" in by_id
+
+    ai = by_id["ai-invest"]
+    assert ai["name"] == "AI 投资晨读"
+    assert ai["brand_title"] == "AI 投资晨读"
+
+    cn = by_id["cn-finance"]
+    assert cn["name"] == "中国财经早报"
+    assert cn["brand_title"] == "中国财经早报"
 
 
 def test_api_episodes_empty(client):
