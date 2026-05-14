@@ -114,22 +114,17 @@ def _detect_block(
     return (x_lo, y_lo, x_hi, y_hi)
 
 
-def _draw_centered(
+def _fit_font_size(
     draw: ImageDraw.ImageDraw,
     text: str,
     box: tuple[int, int, int, int],
-    target_fill_w: float = 0.55,
-    target_fill_h: float = 0.50,
-) -> None:
-    """
-    Pick a font size so text fits within target_fill_w fraction of box width and
-    target_fill_h of box height, then draw it centred with a stroke outline.
-    Defaults are conservative because auto-detected color-block bboxes
-    over-estimate the visible block by including tilted edge pixels.
-    """
+    target_fill_w: float = 0.82,
+    target_fill_h: float = 0.75,
+) -> int:
+    """Return the largest font size that fits text within target_fill_w × box_w
+    and target_fill_h × box_h. Used to compute a unified size across blocks."""
     left, top, right, bottom = box
     bw, bh = right - left, bottom - top
-    # Binary-search font size
     lo, hi = 20, min(bh - 8, 200)
     best = lo
     while lo <= hi:
@@ -143,6 +138,26 @@ def _draw_centered(
             lo = mid + 1
         else:
             hi = mid - 1
+    return best
+
+
+def _draw_centered(
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    box: tuple[int, int, int, int],
+    font_size: int | None = None,
+    target_fill_w: float = 0.82,
+    target_fill_h: float = 0.75,
+) -> None:
+    """
+    Draw text centred in box with a stroke outline. If font_size is None,
+    auto-pick the largest size that fits target_fill_w/h fractions.
+    """
+    left, top, right, bottom = box
+    bw, bh = right - left, bottom - top
+    if font_size is None:
+        font_size = _fit_font_size(draw, text, box, target_fill_w, target_fill_h)
+    best = font_size
     f = _pick_font(best)
     tb = draw.textbbox((0, 0), text, font=f, stroke_width=STROKE_PX)
     tw = tb[2] - tb[0]
@@ -210,8 +225,15 @@ def compose_cover(
         gold_box = _FALLBACK_GOLD
 
     draw = ImageDraw.Draw(im)
-    _draw_centered(draw, text_top, purple_box)
-    _draw_centered(draw, text_bottom, gold_box)
+    # Compute unified font size: take min of what each block can fit, so both
+    # headlines render at the same visual size (looks balanced, not lopsided).
+    size_top = _fit_font_size(draw, text_top, purple_box) if text_top else 200
+    size_bot = _fit_font_size(draw, text_bottom, gold_box) if text_bottom else 200
+    unified = min(size_top, size_bot)
+    if text_top:
+        _draw_centered(draw, text_top, purple_box, font_size=unified)
+    if text_bottom:
+        _draw_centered(draw, text_bottom, gold_box, font_size=unified)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     im.save(out_path, "PNG")
@@ -228,14 +250,19 @@ def build_for_episode(
     Build today's cover for a channel.
 
     Returns None if no cover_frame.png exists for this channel.
-    text_top:    channel.brand_title (e.g. "AI 投资晨读")
-    text_bottom: rank-1 item's short hook (first comma-clause, max 14 chars)
+    text_top:    rank-1 item's short hook (top headline, max 10 chars for punch)
+    text_bottom: rank-2 item's short hook (second headline)
+    Falls back to channel.brand_title if curated is empty.
     """
     frame_path = channel.root / "cover_frame.png"
     if not frame_path.exists():
         return None
-    text_top = channel.brand_title
-    text_bottom = _hook(curated[0]["title"]) if curated else ""
+    if curated:
+        text_top = _hook(curated[0]["title"], max_chars=10)
+        text_bottom = _hook(curated[1]["title"], max_chars=10) if len(curated) >= 2 else ""
+    else:
+        text_top = channel.brand_title
+        text_bottom = ""
     return compose_cover(frame_path, out_path, text_top, text_bottom)
 
 
