@@ -39,10 +39,22 @@ def _recent_curated_paths(settings: Settings, date: str) -> list[Path]:
     return out
 
 
+_STAGE_ORDER = ["ingest", "curate", "script", "render_html", "render_video", "publish"]
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--date", default=None)
+    parser.add_argument(
+        "--start-stage",
+        default="ingest",
+        choices=_STAGE_ORDER,
+        help="Resume from this stage onward (skips earlier stages). Default: ingest (full run).",
+    )
     args = parser.parse_args(argv)
+
+    def _skip(stage: str) -> bool:
+        return _STAGE_ORDER.index(stage) < _STAGE_ORDER.index(args.start_stage)
 
     settings = Settings()
     date = args.date or today_str(settings.timezone)
@@ -56,52 +68,57 @@ def main(argv: list[str] | None = None) -> int:
     sfx = settings.assets_dir / "page_turn.mp3"
 
     try:
-        logger.info("stage.start", stage="ingest")
-        asyncio.run(ingest_run(
-            settings.sources_yaml, d / "raw.json", max_age_hours=24,
-        ))
-        logger.info("stage.start", stage="curate")
-        curate_run(
-            raw_path=d / "raw.json",
-            out_path=d / "curated.json",
-            recent_curated_paths=_recent_curated_paths(settings, date),
-            api_key=settings.anthropic_api_key,
-            prompts_dir=settings.prompts_dir,
-            llm_model=settings.llm_model,
-            llm_base_url=settings.anthropic_base_url,
-        )
-        logger.info("stage.start", stage="script")
-        script_run(
-            curated_path=d / "curated.json",
-            script_md_path=d / "script.md",
-            segments_path=d / "segments.json",
-            api_key=settings.anthropic_api_key,
-            prompts_dir=settings.prompts_dir,
-            date=date,
-            llm_model=settings.llm_model,
-            llm_base_url=settings.anthropic_base_url,
-        )
-        logger.info("stage.start", stage="render_html")
-        html_render(
-            curated_path=d / "curated.json",
-            out_path=d / "index.html",
-            templates_dir=settings.templates_dir,
-            date=date, episode=episode,
-        )
-        logger.info("stage.start", stage="render_video")
-        asyncio.run(video_run(
-            day_dir=d,
-            templates_dir=settings.templates_dir,
-            tts_api_key=settings.minimax_api_key,
-            tts_group_id=settings.minimax_group_id,
-            tts_voice_id=settings.minimax_voice_id,
-            bgm_path=bgm if bgm.exists() else None,
-            sfx_path=sfx if sfx.exists() else None,
-            date=date, episode=episode,
-        ))
+        if not _skip("ingest"):
+            logger.info("stage.start", stage="ingest")
+            asyncio.run(ingest_run(
+                settings.sources_yaml, d / "raw.json", max_age_hours=24,
+            ))
+        if not _skip("curate"):
+            logger.info("stage.start", stage="curate")
+            curate_run(
+                raw_path=d / "raw.json",
+                out_path=d / "curated.json",
+                recent_curated_paths=_recent_curated_paths(settings, date),
+                api_key=settings.anthropic_api_key,
+                prompts_dir=settings.prompts_dir,
+                llm_model=settings.llm_model,
+                llm_base_url=settings.anthropic_base_url,
+            )
+        if not _skip("script"):
+            logger.info("stage.start", stage="script")
+            script_run(
+                curated_path=d / "curated.json",
+                script_md_path=d / "script.md",
+                segments_path=d / "segments.json",
+                api_key=settings.anthropic_api_key,
+                prompts_dir=settings.prompts_dir,
+                date=date,
+                llm_model=settings.llm_model,
+                llm_base_url=settings.anthropic_base_url,
+            )
+        if not _skip("render_html"):
+            logger.info("stage.start", stage="render_html")
+            html_render(
+                curated_path=d / "curated.json",
+                out_path=d / "index.html",
+                templates_dir=settings.templates_dir,
+                date=date, episode=episode,
+            )
+        if not _skip("render_video"):
+            logger.info("stage.start", stage="render_video")
+            asyncio.run(video_run(
+                day_dir=d,
+                templates_dir=settings.templates_dir,
+                tts_api_key=settings.minimax_api_key,
+                tts_group_id=settings.minimax_group_id,
+                tts_voice_id=settings.minimax_voice_id,
+                bgm_path=bgm if bgm.exists() else None,
+                sfx_path=sfx if sfx.exists() else None,
+                date=date, episode=episode,
+            ))
         # ── Stage 6: optional B站 publish ────────────────────────────────────
         published = False
-        if settings.auto_publish:
+        if settings.auto_publish and not _skip("publish"):
             logger.info("stage.start", stage="publish")
             try:
                 publish_run(
