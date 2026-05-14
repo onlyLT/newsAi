@@ -46,11 +46,12 @@ def test_detect_purple_block(tmp_path: Path):
     box = _detect_block(rgb, hue_lo=260, hue_hi=295, s_min=0.4, v_min=0.4)
     assert box is not None, "purple block should be detected"
     l, t, r, b = box
-    # Should roughly match (60, 290, 660, 460) with 2/98 pct trim
-    assert 50 <= l <= 100,  f"left={l}"
-    assert 280 <= t <= 310, f"top={t}"
-    assert 600 <= r <= 680, f"right={r}"
-    assert 440 <= b <= 480, f"bottom={b}"
+    # With 12% percentile trim of synthetic (60, 290, 660, 460) block:
+    # ~60+72=132 left, ~660-72=588 right, ~290+20=310 top, ~460-20=440 bottom
+    assert 110 <= l <= 160, f"left={l}"
+    assert 290 <= t <= 320, f"top={t}"
+    assert 560 <= r <= 610, f"right={r}"
+    assert 430 <= b <= 460, f"bottom={b}"
 
 
 def test_detect_gold_block(tmp_path: Path):
@@ -59,11 +60,11 @@ def test_detect_gold_block(tmp_path: Path):
     box = _detect_block(rgb, hue_lo=35, hue_hi=58, s_min=0.5, v_min=0.6)
     assert box is not None, "gold block should be detected"
     l, t, r, b = box
-    # Should roughly match (130, 500, 810, 680) with 2/98 pct trim
-    assert 100 <= l <= 180, f"left={l}"
-    assert 490 <= t <= 530, f"top={t}"
-    assert 750 <= r <= 850, f"right={r}"
-    assert 660 <= b <= 700, f"bottom={b}"
+    # With 12% percentile trim of synthetic (130, 500, 810, 680) block.
+    assert 190 <= l <= 240, f"left={l}"
+    assert 510 <= t <= 535, f"top={t}"
+    assert 720 <= r <= 770, f"right={r}"
+    assert 650 <= b <= 680, f"bottom={b}"
 
 
 def test_detect_block_returns_none_when_absent(tmp_path: Path):

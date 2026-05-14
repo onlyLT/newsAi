@@ -64,7 +64,7 @@ def _detect_block(
     hue_hi: float,
     s_min: float = 0.5,
     v_min: float = 0.5,
-    percentile_trim: float = 2.0,
+    percentile_trim: float = 12.0,
 ) -> tuple[int, int, int, int] | None:
     """
     Find bbox of the largest contiguous region matching the HSV criteria.
@@ -118,11 +118,14 @@ def _draw_centered(
     draw: ImageDraw.ImageDraw,
     text: str,
     box: tuple[int, int, int, int],
-    target_fill: float = 0.75,
+    target_fill_w: float = 0.55,
+    target_fill_h: float = 0.50,
 ) -> None:
     """
-    Pick a font size so text fits in box at target_fill fraction of width
-    and 0.70 fraction of height, then draw it centred with a stroke outline.
+    Pick a font size so text fits within target_fill_w fraction of box width and
+    target_fill_h of box height, then draw it centred with a stroke outline.
+    Defaults are conservative because auto-detected color-block bboxes
+    over-estimate the visible block by including tilted edge pixels.
     """
     left, top, right, bottom = box
     bw, bh = right - left, bottom - top
@@ -135,7 +138,7 @@ def _draw_centered(
         tb = draw.textbbox((0, 0), text, font=f, stroke_width=STROKE_PX)
         tw = tb[2] - tb[0]
         th = tb[3] - tb[1]
-        if tw <= bw * target_fill and th <= bh * 0.70:
+        if tw <= bw * target_fill_w and th <= bh * target_fill_h:
             best = mid
             lo = mid + 1
         else:
