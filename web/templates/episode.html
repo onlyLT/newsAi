@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NewsAI — {{ date }}</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <style>
+    /* Episode-detail specific styles */
+    .ep-detail-header { display:flex; align-items:center; gap:1rem; margin-bottom:1.5rem; }
+    .ep-detail-header a { color:var(--muted); text-decoration:none; font-size:.85rem; }
+    .ep-detail-header a:hover { color:var(--accent); }
+    .ep-detail-date { font-size:1.4rem; font-weight:700; color:var(--accent); }
+
+    .detail-grid { display:grid; grid-template-columns:1fr 320px; gap:1.5rem; align-items:start; margin-bottom:1.5rem; }
+    @media (max-width:900px) { .detail-grid { grid-template-columns:1fr; } }
+
+    .video-wrap { max-width:960px; }
+    .video-wrap video { width:100%; border-radius:var(--radius); background:#000; }
+
+    .meta-table { width:100%; border-collapse:collapse; font-size:.85rem; }
+    .meta-table td { padding:.4rem .5rem; border-bottom:1px solid var(--border); }
+    .meta-table td:first-child { color:var(--muted); white-space:nowrap; }
+
+    .curated-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:1rem; margin-top:1rem; }
+    .curated-card {
+      background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius);
+      padding:1rem; display:flex; flex-direction:column; gap:.5rem;
+      cursor:pointer; transition:border-color .15s, transform .1s; text-decoration:none; color:var(--text);
+    }
+    .curated-card:hover { border-color:var(--accent); transform:translateY(-1px); }
+    .curated-rank { font-size:.7rem; color:var(--muted); font-weight:600; }
+    .curated-title { font-size:.9rem; font-weight:600; line-height:1.4; }
+    .curated-tldr { font-size:.78rem; color:var(--muted); line-height:1.5; }
+    .curated-tags { display:flex; flex-wrap:wrap; gap:.3rem; margin-top:.25rem; }
+    .tag { font-size:.68rem; padding:.15rem .45rem; border-radius:4px; font-weight:600; }
+    .tag-bullish { background:rgba(52,211,153,.15); color:var(--success); }
+    .tag-bearish { background:rgba(248,113,113,.15); color:var(--danger); }
+    .tag-mixed   { background:rgba(251,191,36,.15);  color:var(--warn); }
+    .tag-ticker  { background:rgba(108,142,255,.15); color:var(--accent); }
+    .tag-sector  { background:rgba(167,139,250,.15); color:var(--accent2); }
+
+    .script-body { font-size:.88rem; line-height:1.8; color:var(--text); }
+    .script-body h1,.script-body h2,.script-body h3 { color:var(--accent); margin:1rem 0 .5rem; }
+    .script-body p { margin-bottom:.75rem; }
+    .script-body hr { border:none; border-top:1px solid var(--border); margin:1rem 0; }
+
+    .segments-list { font-family:'Fira Code','Consolas',monospace; font-size:.8rem; line-height:2; }
+    .seg-row { display:flex; gap:.75rem; border-bottom:1px solid var(--border); padding:.3rem 0; }
+    .seg-ts { color:var(--accent2); min-width:45px; }
+    .seg-id { color:var(--muted); min-width:80px; }
+    .seg-dur { color:var(--warn); min-width:40px; }
+    .seg-text { color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
+
+    .actions-row { display:flex; flex-wrap:wrap; gap:.75rem; margin-bottom:1.5rem; }
+
+    .log-panel-inline {
+      background:#0a0c12; border:1px solid var(--border); border-radius:var(--radius);
+      padding:.75rem 1rem; font-family:'Fira Code','Consolas',monospace; font-size:.75rem;
+      line-height:1.6; max-height:320px; overflow-y:auto; color:#a0aec0; margin-top:.75rem;
+      white-space:pre-wrap; word-break:break-all;
+    }
+
+    .section-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:1.25rem; margin-bottom:1.5rem; }
+    .section-card-title { font-size:.8rem; font-weight:600; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-bottom:1rem; }
+  </style>
+</head>
+<body style="min-height:100vh;background:var(--bg);color:var(--text)">
+
+<header class="app-header">
+  <a href="/" class="logo" style="text-decoration:none">🎙 NewsAI</a>
+  <nav>
+    <ul class="nav-tabs">
+      <li><a href="/" class="nav-tabs" style="color:var(--muted);text-decoration:none;font-size:.875rem;padding:.35rem .85rem;border-radius:var(--radius)">← Dashboard</a></li>
+    </ul>
+  </nav>
+</header>
+
+<main class="page-content" x-data="episodePage()" x-init="init()">
+
+  <div class="ep-detail-header">
+    <a href="/">← All episodes</a>
+    <span class="ep-detail-date">{{ date }}</span>
+    {% if ep.status == 'success' %}
+    <span class="badge badge-success">✅ Success</span>
+    {% elif ep.status == 'failed' %}
+    <span class="badge badge-danger">❌ Failed</span>
+    {% elif ep.status == 'running' %}
+    <span class="badge badge-warn">⏳ Running</span>
+    {% else %}
+    <span class="badge badge-muted">? Unknown</span>
+    {% endif %}
+  </div>
+
+  <!-- ── Video + Meta ─────────────────────────────────────────── -->
+  <div class="detail-grid">
+    <div class="video-wrap">
+      {% if ep.has_video %}
+      <video controls preload="metadata">
+        <source src="/dist/{{ date }}/video.mp4" type="video/mp4">
+      </video>
+      {% else %}
+      <div style="background:var(--surface2);border-radius:var(--radius);aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;color:var(--muted);">
+        No video yet
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="section-card" style="margin-bottom:0">
+      <table class="meta-table">
+        <tr><td>Duration</td><td>{% if ep.video_duration_s %}{{ "%.0f"|format(ep.video_duration_s // 60) }}m {{ "%.0f"|format(ep.video_duration_s % 60) }}s{% else %}—{% endif %}</td></tr>
+        <tr><td>File size</td><td>{% if ep.video_size_kb %}{{ "%.1f"|format(ep.video_size_kb / 1024) }} MB{% else %}—{% endif %}</td></tr>
+        <tr><td>Generated</td><td>{{ ep.generated_at or '—' }}</td></tr>
+        <tr><td>Items</td><td>{{ ep.item_count or '—' }}</td></tr>
+        <tr><td>B站</td><td>
+          {% if ep.bvid %}
+          <a href="https://www.bilibili.com/video/{{ ep.bvid }}" target="_blank" class="badge badge-accent">{{ ep.bvid }}</a>
+          {% else %}
+          <span class="badge badge-muted">Not published</span>
+          {% endif %}
+        </td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── Actions ──────────────────────────────────────────────── -->
+  <div class="actions-row">
+    {% if ep.has_html %}
+    <a href="/dist/{{ date }}/index.html" target="_blank" class="btn btn-ghost btn-sm">📄 Open HTML report</a>
+    {% endif %}
+    <button class="btn btn-ghost btn-sm" @click="reRenderVideo()">🎬 Re-render video</button>
+    <a href="/?tab=publish&date={{ date }}" class="btn btn-ghost btn-sm">📺 Re-publish to B站</a>
+    <button class="btn btn-ghost btn-sm" @click="showLog=!showLog">📋 <span x-text="showLog?'Hide log':'View run.log'"></span></button>
+  </div>
+  <div x-show="runMsg" style="color:var(--success);font-size:.85rem;margin-bottom:.75rem" x-text="runMsg"></div>
+  <div x-show="runError" class="error-box" x-text="runError" style="margin-bottom:.75rem"></div>
+  <div x-show="showLog" class="log-panel-inline">{{ '\n'.join(ep.log_tail) }}</div>
+
+  <!-- ── Curated cards ─────────────────────────────────────────── -->
+  <div class="section-card">
+    <div class="section-card-title">Curated items ({{ ep.item_count }})</div>
+    <div class="curated-grid">
+      {% for item in ep.curated %}
+      {% set direction = item.impact.direction if item.impact else '' %}
+      <a href="{{ item.source_url }}" target="_blank" class="curated-card">
+        <div class="curated-rank">#{{ item.rank }} · {{ item.source_name }}</div>
+        <div class="curated-title">{{ item.title }}</div>
+        <div class="curated-tldr">{{ item.tldr }}</div>
+        <div class="curated-tags">
+          {% if direction == 'bullish' %}
+          <span class="tag tag-bullish">利好</span>
+          {% elif direction == 'bearish' %}
+          <span class="tag tag-bearish">利空</span>
+          {% else %}
+          <span class="tag tag-mixed">中性</span>
+          {% endif %}
+          {% for t in (item.impact.tickers or []) %}
+          <span class="tag tag-ticker">{{ t }}</span>
+          {% endfor %}
+          {% for s in (item.impact.sectors or []) %}
+          <span class="tag tag-sector">{{ s }}</span>
+          {% endfor %}
+        </div>
+        {% if item.impact.reasoning %}
+        <div style="font-size:.73rem;color:var(--muted);margin-top:.35rem;line-height:1.5">{{ item.impact.reasoning[:120] }}{% if item.impact.reasoning|length > 120 %}…{% endif %}</div>
+        {% endif %}
+      </a>
+      {% else %}
+      <div style="color:var(--muted);">No curated items.</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- ── Script ────────────────────────────────────────────────── -->
+  {% if ep.script_html %}
+  <div class="section-card">
+    <div class="section-card-title">Script</div>
+    <div class="script-body">{{ ep.script_html | safe }}</div>
+  </div>
+  {% endif %}
+
+  <!-- ── Segments timeline ─────────────────────────────────────── -->
+  {% if ep.segments %}
+  <div class="section-card">
+    <div class="section-card-title">Segments timeline</div>
+    <div class="segments-list">
+      {% for seg in ep.segments %}
+      <div class="seg-row">
+        <span class="seg-ts">[{{ seg.start_ts }}]</span>
+        <span class="seg-id">{{ seg.id }}</span>
+        <span class="seg-dur">({{ seg.duration_s }}s)</span>
+        <span class="seg-text" title="{{ seg.text }}">"{{ seg.text[:80] }}{% if seg.text|length > 80 %}…{% endif %}"</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+</main>
+
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<script>
+function episodePage() {
+  return {
+    showLog: false,
+    runMsg: '',
+    runError: '',
+
+    async reRenderVideo() {
+      this.runMsg = '';
+      this.runError = '';
+      try {
+        const res = await fetch('/api/run', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ date: '{{ date }}', stage: 'render_video' }),
+        });
+        const d = await res.json();
+        if (!res.ok) { this.runError = d.detail || JSON.stringify(d); return; }
+        this.runMsg = 'render_video triggered — check the Run tab for logs.';
+      } catch(e) { this.runError = String(e); }
+    },
+
+    init() {},
+  };
+}
+</script>
+</body>
+</html>

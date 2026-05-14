@@ -30,6 +30,7 @@ from web.runs import start_run, run_status, is_running, tail_log
 PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", Path(__file__).resolve().parent.parent))
 DIST_DIR = PROJECT_ROOT / "dist"
 PROMPTS_DIR = PROJECT_ROOT / "prompts"
+SOURCES_YAML = PROJECT_ROOT / "sources" / "sources.yaml"
 PYTHON_EXE = str(Path(sys.executable))
 
 # ---------------------------------------------------------------------------
@@ -127,6 +128,18 @@ async def index(request: Request):
     today = today_str()
     episodes = _list_episodes(30)
     today_ep = next((e for e in episodes if e["date"] == today), None)
+
+    # Detect failed stage for today's banner
+    from web.episodes import detect_failed_stage, parse_run_log
+    today_failed_stage = None
+    retry_log_tail: list[str] = []
+    if not is_running(today):
+        log_path = DIST_DIR / today / "run.log"
+        today_failed_stage = detect_failed_stage(log_path)
+        if today_failed_stage:
+            info = parse_run_log(log_path)
+            retry_log_tail = info["lines"][-50:]
+
     return templates.TemplateResponse(
         request=request,
         name="index.html",
@@ -134,7 +147,39 @@ async def index(request: Request):
             "today": today,
             "today_ep": today_ep,
             "episodes": episodes,
+            "today_failed_stage": today_failed_stage,
+            "retry_log_tail": retry_log_tail,
         },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Episode detail page (server-rendered)
+# ---------------------------------------------------------------------------
+
+@app.get("/episodes/{date}", response_class=HTMLResponse)
+async def episode_page(date: str, request: Request):
+    day = DIST_DIR / date
+    if not day.exists():
+        raise HTTPException(status_code=404, detail=f"No episode for {date}")
+
+    from web.episodes import build_episode_detail
+    ep = build_episode_detail(day)
+
+    # Render script.md as HTML
+    script_html = None
+    if ep.get("script_md"):
+        try:
+            import markdown as _md
+            script_html = _md.markdown(ep["script_md"])
+        except Exception:
+            script_html = f"<pre>{ep['script_md']}</pre>"
+    ep["script_html"] = script_html
+
+    return templates.TemplateResponse(
+        request=request,
+        name="episode.html",
+        context={"date": date, "ep": ep},
     )
 
 
@@ -167,32 +212,57 @@ async def episode_detail(date: str):
     return summary
 
 
+@app.get("/api/episodes/{date}/detail")
+async def episode_detail_full(date: str):
+    """Extended detail endpoint for the episode detail page / API consumers."""
+    day = DIST_DIR / date
+    if not day.exists():
+        raise HTTPException(status_code=404, detail="Episode not found")
+
+    from web.episodes import build_episode_detail
+    return build_episode_detail(day)
+
+
 # ---------------------------------------------------------------------------
 # API: Run trigger
 # ---------------------------------------------------------------------------
 
 VALID_STAGES = {"ingest", "curate", "script", "render_html", "render_video", "publish"}
 
+# Ordered stage list for "retry from stage" logic
+STAGE_ORDER = ["ingest", "curate", "script", "render_html", "render_video", "publish"]
+
 
 @app.post("/api/run")
 async def trigger_run(body: dict = Body(...)):
     date: str = body.get("date", "")
     stage: Optional[str] = body.get("stage")
+    start_stage: Optional[str] = body.get("start_stage")  # for retry-from
 
     if not date:
         raise HTTPException(status_code=400, detail="date is required")
     if stage and stage not in VALID_STAGES:
         raise HTTPException(status_code=400, detail=f"Invalid stage: {stage}")
+    if start_stage and start_stage not in VALID_STAGES:
+        raise HTTPException(status_code=400, detail=f"Invalid start_stage: {start_stage}")
     if is_running(date):
         raise HTTPException(status_code=409, detail=f"Run for {date} already in progress")
 
-    if stage:
+    if start_stage:
+        # Retry from stage: run a wrapper that chains from start_stage onward
+        cmd = [PYTHON_EXE, "run_daily.py", "--date", date, "--start-stage", start_stage]
+    elif stage:
         cmd = [PYTHON_EXE, "-m", f"pipelines.{stage}", "--date", date]
     else:
         cmd = [PYTHON_EXE, "run_daily.py", "--date", date]
 
     start_run(date, cmd, PROJECT_ROOT)
-    return {"task_id": date, "started_at": datetime.now(timezone.utc).isoformat(), "stage": stage}
+    return {
+        "task_id": date,
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "stage": stage,
+        "start_stage": start_stage,
+    }
 
 
 @app.get("/api/run/status")
@@ -211,6 +281,25 @@ async def stream_log(date: str, request: Request):
             yield {"data": line}
 
     return EventSourceResponse(event_generator())
+
+
+# ---------------------------------------------------------------------------
+# API: Failed-stage detection
+# ---------------------------------------------------------------------------
+
+@app.get("/api/run/{date}/failed-stage")
+async def get_failed_stage(date: str):
+    """Return the failed/stuck stage for a date, or null if none."""
+    log_path = DIST_DIR / date / "run.log"
+    from web.episodes import detect_failed_stage, parse_run_log
+    stage = detect_failed_stage(log_path)
+    info = parse_run_log(log_path)
+    return {
+        "date": date,
+        "failed_stage": stage,
+        "status": info["status"],
+        "log_tail": info["lines"][-50:],
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -359,3 +448,37 @@ async def do_publish(date: str, body: dict = Body(...)):
         publish_json.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
 
     return {"bvid": bvid, "stdout": result.stdout}
+
+
+# ---------------------------------------------------------------------------
+# API: Sources
+# ---------------------------------------------------------------------------
+
+@app.get("/api/sources")
+async def get_sources():
+    from web.sources_api import load_sources
+    return load_sources(SOURCES_YAML)
+
+
+@app.put("/api/sources")
+async def put_sources(body: list = Body(...)):
+    from web.sources_api import save_sources
+    save_sources(SOURCES_YAML, body)
+    return {"saved": True, "count": len(body)}
+
+
+@app.post("/api/sources/test")
+async def test_source(body: dict = Body(...)):
+    from web.sources_api import test_fetch_source
+    result = await test_fetch_source(body)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# API: Stats
+# ---------------------------------------------------------------------------
+
+@app.get("/api/stats")
+async def get_stats():
+    from web.stats import build_stats
+    return build_stats(DIST_DIR)

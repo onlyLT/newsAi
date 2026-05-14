@@ -9,6 +9,8 @@
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <!-- HTMX for AJAX -->
   <script src="https://unpkg.com/htmx.org@1.9.12/dist/htmx.min.js"></script>
+  <!-- Chart.js for Stats -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
 </head>
 <body x-data="dashboard()" x-init="init()">
 
@@ -20,7 +22,9 @@
       <li><button :class="{active: tab==='dashboard'}" @click="tab='dashboard'">Dashboard</button></li>
       <li><button :class="{active: tab==='run'}"       @click="tab='run';     initRun()">Run</button></li>
       <li><button :class="{active: tab==='prompts'}"   @click="tab='prompts'; loadPrompt()">Prompts</button></li>
+      <li><button :class="{active: tab==='sources'}"   @click="tab='sources'; loadSources()">Sources</button></li>
       <li><button :class="{active: tab==='publish'}"   @click="tab='publish'; loadPublish()">Publish</button></li>
+      <li><button :class="{active: tab==='stats'}"     @click="tab='stats';   loadStats()">Stats</button></li>
     </ul>
   </nav>
 </header>
@@ -33,6 +37,27 @@
     <!-- Today's episode -->
     <div class="section-title">今日 — {{ today }}</div>
     <div class="section-sub">Today's episode</div>
+
+    <!-- ── Failed-stage retry banner ────────────────────────────────── -->
+    {% if today_failed_stage %}
+    <div class="retry-banner" x-data="retryBanner()">
+      <div class="retry-banner-text">
+        ⚠ 今天的 run 在 <strong>{{ today_failed_stage }}</strong> 阶段失败 / 卡住
+      </div>
+      <div class="retry-banner-actions">
+        <button class="btn btn-danger btn-sm" :disabled="retryRunning" @click="retryFrom('{{ today_failed_stage }}')">
+          <span x-show="retryRunning" class="spinner"></span>
+          Retry from {{ today_failed_stage }}
+        </button>
+        <button class="btn btn-ghost btn-sm" @click="showRetryLog=!showRetryLog">
+          <span x-text="showRetryLog?'Hide log':'View log'"></span>
+        </button>
+      </div>
+      <div x-show="retryMsg" style="font-size:.82rem;color:var(--success);margin-top:.5rem" x-text="retryMsg"></div>
+      <div x-show="retryError" style="font-size:.82rem;color:var(--danger);margin-top:.5rem" x-text="retryError"></div>
+      <div x-show="showRetryLog" class="retry-log">{{ '\n'.join(retry_log_tail) }}</div>
+    </div>
+    {% endif %}
 
     {% if today_ep %}
     <div class="card" style="margin-bottom:1.5rem">
@@ -78,11 +103,16 @@
             </a>
           </div>
           {% endif %}
-          {% if today_ep.has_html %}
-          <a href="/dist/{{ today }}/index.html" target="_blank" class="btn btn-ghost btn-sm" style="align-self:flex-start;margin-top:.5rem">
-            📄 Open HTML report
-          </a>
-          {% endif %}
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.5rem">
+            {% if today_ep.has_html %}
+            <a href="/dist/{{ today }}/index.html" target="_blank" class="btn btn-ghost btn-sm">
+              📄 Open HTML report
+            </a>
+            {% endif %}
+            <a href="/episodes/{{ today }}" class="btn btn-ghost btn-sm">
+              🔍 Detail
+            </a>
+          </div>
         </div>
       </div>
     </div>
@@ -98,8 +128,7 @@
     <div class="episodes-grid">
       {% for ep in episodes %}
       <a
-        href="{% if ep.has_html %}/dist/{{ ep.date }}/index.html{% else %}#{% endif %}"
-        {% if ep.has_html %}target="_blank"{% endif %}
+        href="/episodes/{{ ep.date }}"
         class="ep-card"
       >
         <div class="ep-date">{{ ep.date }}</div>
@@ -221,6 +250,69 @@
     </div>
   </section>
 
+  <!-- ══ Panel 5: Sources ═══════════════════════════════════════════ -->
+  <section class="panel" :class="{active: tab==='sources'}">
+    <div class="section-title">Sources</div>
+    <div class="section-sub">Manage news sources. Click a cell to edit inline.</div>
+
+    <div class="card">
+      <div class="form-row" style="margin-bottom:1rem">
+        <button class="btn btn-primary btn-sm" @click="addSource()">+ Add source</button>
+        <button class="btn btn-ghost btn-sm" :disabled="sourcesSaving" @click="saveSources()">
+          <span x-show="sourcesSaving" class="spinner"></span>
+          Save changes
+        </button>
+        <span x-show="sourcesMsg" style="color:var(--success);font-size:.85rem" x-text="sourcesMsg"></span>
+        <span x-show="sourcesError" style="color:var(--danger);font-size:.85rem" x-text="sourcesError"></span>
+      </div>
+
+      <div class="sources-table-wrap">
+        <table class="sources-table">
+          <thead>
+            <tr>
+              <th>ID</th><th>Name</th><th>Type</th><th>URL</th><th>Lang</th><th>Filter keywords</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="(src, idx) in sources" :key="idx">
+              <tr>
+                <td><input type="text" x-model="src.id" class="src-cell"></td>
+                <td><input type="text" x-model="src.name" class="src-cell"></td>
+                <td>
+                  <select x-model="src.type" class="src-cell">
+                    <option value="rss">rss</option>
+                  </select>
+                </td>
+                <td><input type="text" x-model="src.url" class="src-cell src-url"></td>
+                <td>
+                  <select x-model="src.lang" class="src-cell">
+                    <option value="zh">zh</option>
+                    <option value="en">en</option>
+                  </select>
+                </td>
+                <td><input type="text" :value="(src.filter_keywords||[]).join(', ')" @change="src.filter_keywords=$event.target.value.split(',').map(s=>s.trim()).filter(Boolean)" class="src-cell src-keywords"></td>
+                <td style="white-space:nowrap">
+                  <button class="btn btn-ghost btn-sm" @click="testSource(src, idx)">Test</button>
+                  <button class="btn btn-danger btn-sm" @click="removeSource(idx)">Remove</button>
+                </td>
+              </tr>
+              <!-- test result row -->
+              <tr x-show="testResults[idx]">
+                <td colspan="7" style="padding:.4rem .75rem;font-size:.78rem">
+                  <span x-show="testResults[idx]?.error" style="color:var(--danger)" x-text="'Error: ' + testResults[idx]?.error"></span>
+                  <span x-show="!testResults[idx]?.error" style="color:var(--success)">
+                    Got <strong x-text="testResults[idx]?.count"></strong> articles.
+                    Sample: <span x-text="(testResults[idx]?.sample_titles||[]).slice(0,3).join(' / ')"></span>
+                  </span>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
   <!-- ══ Panel 6: Publish ════════════════════════════════════════════ -->
   <section class="panel" :class="{active: tab==='publish'}">
     <div class="section-title">Publish to B站</div>
@@ -292,9 +384,127 @@
     </div>
   </section>
 
+  <!-- ══ Panel 7: Stats ════════════════════════════════════════════ -->
+  <section class="panel" :class="{active: tab==='stats'}">
+    <div class="section-title">Stats</div>
+    <div class="section-sub">30-day metrics, success rates, and cost estimates.</div>
+
+    <div x-show="statsLoading" style="color:var(--muted);font-size:.85rem;padding:2rem 0">Loading stats…</div>
+    <div x-show="statsError" class="error-box" x-text="statsError"></div>
+
+    <template x-if="statsData">
+      <div>
+        <!-- 7a. Daily metrics chart -->
+        <div class="card" style="margin-bottom:1.5rem">
+          <div class="card-title">Daily metrics (last 30 days)</div>
+          <div style="position:relative;height:280px">
+            <canvas id="dailyChart"></canvas>
+          </div>
+          <div style="font-size:.75rem;color:var(--muted);margin-top:.5rem">
+            Bars = items count &nbsp;|&nbsp; Lines = video duration (s) and size (KB)
+          </div>
+        </div>
+
+        <!-- 7b. Success rate donut -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem">
+          <div class="card">
+            <div class="card-title">Success rate</div>
+            <div style="position:relative;height:200px;display:flex;justify-content:center">
+              <canvas id="donutChart"></canvas>
+            </div>
+            <div style="font-size:.78rem;color:var(--muted);margin-top:.75rem;line-height:1.8">
+              Total episodes: <strong x-text="statsData.daily.length"></strong><br>
+              ✅ Success: <strong x-text="statsData.daily.filter(d=>d.success).length"></strong><br>
+              ❌ Failed: <strong x-text="statsData.daily.filter(d=>d.failed).length"></strong><br>
+              ⏳ Unfinished: <strong x-text="statsData.daily.filter(d=>!d.success&&!d.failed).length"></strong><br>
+              📺 Published: <strong x-text="statsData.daily.filter(d=>d.published).length"></strong>
+            </div>
+          </div>
+
+          <!-- 7d. B站 performance placeholder -->
+          <div class="card" style="display:flex;flex-direction:column;justify-content:center;align-items:center;color:var(--muted);text-align:center;gap:.5rem">
+            <div style="font-size:2rem">📺</div>
+            <div class="card-title" style="margin-bottom:0">B站 Performance</div>
+            <div style="font-size:.82rem">Coming soon — requires B站 API integration</div>
+          </div>
+        </div>
+
+        <!-- 7c. Cost estimate table -->
+        <div class="card">
+          <div class="card-title">Cost estimates (last 30 days) <span style="font-weight:400;font-size:.73rem;margin-left:.5rem">— estimates only, not actual charges</span></div>
+          <div class="cost-rates" style="font-size:.75rem;color:var(--muted);margin-bottom:.75rem">
+            TTS: ¥<span x-text="statsData.rates.tts_rmb_per_char"></span>/char &nbsp;|&nbsp;
+            LLM: $<span x-text="statsData.rates.llm_usd_per_m_in"></span>/M in, $<span x-text="statsData.rates.llm_usd_per_m_out"></span>/M out &nbsp;|&nbsp;
+            USD→RMB: <span x-text="statsData.rates.usd_to_rmb"></span>
+          </div>
+          <div class="cost-table-wrap">
+            <table class="cost-table">
+              <thead>
+                <tr>
+                  <th>Date</th><th>Script chars</th><th>Video (s)</th>
+                  <th>LLM est. (¥)</th><th>TTS est. (¥)</th><th>Total (¥)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="row in [...statsData.daily].reverse()" :key="row.date">
+                  <tr>
+                    <td x-text="row.date"></td>
+                    <td x-text="row.script_chars || '—'"></td>
+                    <td x-text="row.duration_s ? row.duration_s + 's' : '—'"></td>
+                    <td x-text="row.llm_rmb ? '¥' + row.llm_rmb : '—'"></td>
+                    <td x-text="row.tts_rmb ? '¥' + row.tts_rmb : '—'"></td>
+                    <td x-text="row.total_rmb ? '¥' + row.total_rmb : '—'"></td>
+                  </tr>
+                </template>
+                <!-- Totals row -->
+                <tr style="font-weight:600;border-top:2px solid var(--border)">
+                  <td>30-day total</td>
+                  <td x-text="statsData.daily.reduce((s,d)=>s+(d.script_chars||0),0)"></td>
+                  <td>—</td>
+                  <td x-text="'¥' + statsData.daily.reduce((s,d)=>s+(d.llm_rmb||0),0).toFixed(4)"></td>
+                  <td x-text="'¥' + statsData.daily.reduce((s,d)=>s+(d.tts_rmb||0),0).toFixed(4)"></td>
+                  <td x-text="'¥' + statsData.daily.reduce((s,d)=>s+(d.total_rmb||0),0).toFixed(4)"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </template>
+  </section>
+
 </main>
 
 <script>
+function retryBanner() {
+  return {
+    retryRunning: false,
+    retryMsg: '',
+    retryError: '',
+    showRetryLog: false,
+
+    async retryFrom(stage) {
+      this.retryMsg = '';
+      this.retryError = '';
+      this.retryRunning = true;
+      try {
+        const res = await fetch('/api/run', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ date: '{{ today }}', start_stage: stage }),
+        });
+        const d = await res.json();
+        if (!res.ok) { this.retryError = d.detail || JSON.stringify(d); return; }
+        this.retryMsg = `Retry started from ${stage} — switch to Run tab for live logs.`;
+      } catch(e) {
+        this.retryError = String(e);
+      } finally {
+        this.retryRunning = false;
+      }
+    },
+  };
+}
+
 function dashboard() {
   return {
     tab: 'dashboard',
@@ -412,6 +622,69 @@ function dashboard() {
       }
     },
 
+    // ── Sources panel ─────────────────────────────────────────────
+    sources: [],
+    sourcesSaving: false,
+    sourcesMsg: '',
+    sourcesError: '',
+    testResults: {},
+
+    async loadSources() {
+      this.sourcesMsg = '';
+      this.sourcesError = '';
+      this.testResults = {};
+      try {
+        const res = await fetch('/api/sources');
+        if (!res.ok) { this.sourcesError = 'Failed to load sources'; return; }
+        this.sources = await res.json();
+      } catch(e) {
+        this.sourcesError = String(e);
+      }
+    },
+
+    async saveSources() {
+      this.sourcesMsg = '';
+      this.sourcesError = '';
+      this.sourcesSaving = true;
+      try {
+        const res = await fetch('/api/sources', {
+          method: 'PUT',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(this.sources),
+        });
+        if (!res.ok) { const d=await res.json(); this.sourcesError = d.detail || 'Save failed'; return; }
+        this.sourcesMsg = 'Saved ✓';
+      } catch(e) {
+        this.sourcesError = String(e);
+      } finally {
+        this.sourcesSaving = false;
+      }
+    },
+
+    addSource() {
+      this.sources.push({ id:'', name:'', type:'rss', url:'', lang:'zh', filter_keywords:[] });
+    },
+
+    removeSource(idx) {
+      this.sources.splice(idx, 1);
+      delete this.testResults[idx];
+    },
+
+    async testSource(src, idx) {
+      this.testResults = { ...this.testResults, [idx]: null };
+      try {
+        const res = await fetch('/api/sources/test', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify(src),
+        });
+        const d = await res.json();
+        this.testResults = { ...this.testResults, [idx]: d };
+      } catch(e) {
+        this.testResults = { ...this.testResults, [idx]: { error: String(e) } };
+      }
+    },
+
     // ── Publish panel ─────────────────────────────────────────────
     pubDate: '{{ today }}',
     pubMeta: null,
@@ -465,6 +738,113 @@ function dashboard() {
       } finally {
         this.pubLoading = false;
       }
+    },
+
+    // ── Stats panel ───────────────────────────────────────────────
+    statsData: null,
+    statsLoading: false,
+    statsError: '',
+    _chartsBuilt: false,
+
+    async loadStats() {
+      if (this.statsData) return; // already loaded
+      this.statsLoading = true;
+      this.statsError   = '';
+      try {
+        const res = await fetch('/api/stats');
+        if (!res.ok) { this.statsError = 'Failed to load stats'; return; }
+        this.statsData = await res.json();
+        await this.$nextTick();
+        this._buildCharts();
+      } catch(e) {
+        this.statsError = String(e);
+      } finally {
+        this.statsLoading = false;
+      }
+    },
+
+    _buildCharts() {
+      if (this._chartsBuilt) return;
+      const daily = this.statsData.daily;
+      const labels = daily.map(d => d.date.slice(5)); // MM-DD
+
+      // Daily metrics — bar + lines
+      const dailyCtx = document.getElementById('dailyChart');
+      if (dailyCtx) {
+        new Chart(dailyCtx, {
+          data: {
+            labels,
+            datasets: [
+              {
+                type: 'bar',
+                label: 'Items',
+                data: daily.map(d => d.items || 0),
+                backgroundColor: 'rgba(108,142,255,0.35)',
+                borderColor: 'rgba(108,142,255,0.8)',
+                borderWidth: 1,
+                yAxisID: 'y',
+              },
+              {
+                type: 'line',
+                label: 'Duration (s)',
+                data: daily.map(d => d.duration_s),
+                borderColor: '#34d399',
+                backgroundColor: 'transparent',
+                tension: 0.3,
+                yAxisID: 'y1',
+                pointRadius: 3,
+              },
+              {
+                type: 'line',
+                label: 'Size (KB)',
+                data: daily.map(d => d.size_kb),
+                borderColor: '#fbbf24',
+                backgroundColor: 'transparent',
+                tension: 0.3,
+                yAxisID: 'y1',
+                pointRadius: 3,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { labels: { color: '#e2e8f0', font: { size: 11 } } } },
+            scales: {
+              x: { ticks: { color: '#8892a4', font: { size: 10 } }, grid: { color: '#2e3248' } },
+              y: { ticks: { color: '#8892a4' }, grid: { color: '#2e3248' }, position: 'left' },
+              y1: { ticks: { color: '#8892a4' }, grid: { display: false }, position: 'right' },
+            },
+          },
+        });
+      }
+
+      // Donut — success rate
+      const donutCtx = document.getElementById('donutChart');
+      if (donutCtx) {
+        const success   = daily.filter(d => d.success).length;
+        const failed    = daily.filter(d => d.failed).length;
+        const unfinished = daily.filter(d => !d.success && !d.failed).length;
+        new Chart(donutCtx, {
+          type: 'doughnut',
+          data: {
+            labels: ['✅ Success', '❌ Failed', '⏳ Unfinished'],
+            datasets: [{
+              data: [success, failed, unfinished],
+              backgroundColor: ['rgba(52,211,153,.7)', 'rgba(248,113,113,.7)', 'rgba(251,191,36,.7)'],
+              borderColor: '#1a1d27',
+              borderWidth: 2,
+            }],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom', labels: { color: '#e2e8f0', font: { size: 11 } } } },
+          },
+        });
+      }
+
+      this._chartsBuilt = true;
     },
 
     // ── Init ──────────────────────────────────────────────────────
