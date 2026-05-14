@@ -513,22 +513,41 @@ async def do_publish(date: str, body: dict = Body(...),
             cmd += ["--cover", str(abs_cover)]
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        # capture as bytes so we can force UTF-8 decode regardless of Windows code page
+        result = subprocess.run(cmd, capture_output=True, timeout=300)
     except subprocess.TimeoutExpired:
         raise HTTPException(status_code=504, detail="biliup timed out")
 
+    stderr_text = (result.stderr or b"").decode("utf-8", errors="replace")
+    stdout_text = (result.stdout or b"").decode("utf-8", errors="replace")
+
     if result.returncode != 0:
+        # Surface biliup's actual log to the UI so user can see WHY it failed
+        # (e.g. 21566 "投稿过于频繁" rate-limit, expired cookie, etc.)
+        combined = (stderr_text + "\n" + stdout_text).strip()
+        # Detect known B站 error codes and add friendly message
+        if "21566" in combined:
+            friendly = "❌ B站 风控触发 (21566 投稿过于频繁)。距上次投稿太近，请等 3-6 小时或到明天再试。"
+        elif "code: 60024" in combined or "60024" in combined:
+            friendly = "❌ 标题已存在 (60024)。换个标题再发。"
+        elif "cookie" in combined.lower() and ("过期" in combined or "expir" in combined.lower()):
+            friendly = "❌ B站 登录过期。在 PowerShell 跑: .venv\\Scripts\\biliup.exe login 重新扫码。"
+        else:
+            friendly = "❌ biliup 失败 (exit " + str(result.returncode) + "):"
         return JSONResponse(
             status_code=500,
-            content={"error": result.stderr or result.stdout or "biliup exited non-zero"},
+            content={"error": f"{friendly}\n\n{combined[-1500:]}"},  # last 1500 chars to fit UI
         )
+
+    # use decoded stdout below
+    result_stdout_for_parse = stdout_text
 
     # Try to parse BV from stdout
     bvid = None
-    for line in (result.stdout or "").splitlines():
+    for line in (stdout_text + "\n" + stderr_text).splitlines():
         if "BV" in line:
             import re
-            m = re.search(r"BV\w+", line)
+            m = re.search(r"BV[A-Za-z0-9]+", line)
             if m:
                 bvid = m.group()
                 break
@@ -537,7 +556,7 @@ async def do_publish(date: str, body: dict = Body(...),
         meta["bvid"] = bvid
         publish_json.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    return {"bvid": bvid, "stdout": result.stdout}
+    return {"bvid": bvid, "stdout": stdout_text}
 
 
 # ---------------------------------------------------------------------------
