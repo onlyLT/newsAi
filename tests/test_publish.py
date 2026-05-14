@@ -63,9 +63,9 @@ class TestBuildMetadataBasic:
         )
 
     def test_title_contains_date(self):
-        # Should contain Chinese month/day representation
-        assert "5月" in self.meta["title"] or "05月" in self.meta["title"]
-        assert "14日" in self.meta["title"]
+        # Title format is "{M}/{D} 早报｜..."
+        assert "5/14" in self.meta["title"]
+        assert "早报" in self.meta["title"]
 
     def test_title_has_at_least_one_company(self):
         # At least one known company name should appear
@@ -110,7 +110,7 @@ class TestBuildMetadataTruncatesLongTitle:
 
     def test_title_still_contains_date(self):
         meta = _build_metadata(EIGHT_ITEMS_LONG, "2026-05-14", episode=8)
-        assert "5月" in meta["title"] or "05月" in meta["title"]
+        assert "5/14" in meta["title"]
 
     def test_tag_count_within_limit_with_many_items(self):
         meta = _build_metadata(EIGHT_ITEMS_LONG, "2026-05-14", episode=8)

@@ -78,63 +78,76 @@ def _extract_company_names(curated: list[dict]) -> list[str]:
     return seen
 
 
-def _build_title(companies: list[str], month: str, day: str, n: int) -> str:
+def _hook(title: str, max_chars: int = 22) -> str:
     """
-    Build a title ≤ 80 chars.
-    Format: AI 投资晨读 · {M}月{D}日 · {C1}/{C2}/{C3} 等 {N} 条
-    Drops companies until it fits.
+    Extract a short hook from a curated item title:
+    - If there's a Chinese/half-width comma or "、", take the first clause.
+    - Otherwise return the title (truncated with "…" if > max_chars).
     """
-    base = f"AI 投资晨读 · {month}月{day}日"
-    suffix = f" 等 {n} 条"
-    top = companies[:3]
-    while top:
-        candidate = base + " · " + "/".join(top) + suffix
+    title = title.strip()
+    for sep in "，,、":
+        if sep in title:
+            return title.split(sep)[0].strip()
+    if len(title) <= max_chars:
+        return title
+    return title[:max_chars].rstrip() + "…"
+
+
+def _build_title(curated: list[dict], month: str, day: str) -> str:
+    """
+    Build a title in 橘鸦Juya / 小戴晨读 style: punchy hooks, no series branding.
+    Format: {M}/{D} 早报｜{hook1} · {hook2}[ · {hook3}]
+    Uses "·" so titles containing "，" stay readable. Drops hooks until ≤ 80.
+    """
+    prefix = f"{month}/{day} 早报｜"
+    hooks = [_hook(item["title"]) for item in curated[:3]]
+    while hooks:
+        candidate = prefix + " · ".join(hooks)
         if len(candidate) <= 80:
             return candidate
-        top.pop()
-    # No companies fit — return minimal title
-    return (base + suffix)[:80]
+        hooks.pop()
+    if curated:
+        return (prefix + _hook(curated[0]["title"]))[:80]
+    return prefix
 
 
 def _build_desc(curated: list[dict], date: str) -> str:
     """
-    Build a desc ≤ 250 chars.
-    Opening + numbered title list + closing.
+    Build a short desc ≤ 250 chars. One line, hook-condensed titles, no
+    boilerplate footer. Reads as human-curated — no "AI 自动生成" hint.
     """
     n = len(curated)
-    opening = f"本期精选 {n} 条 AI 投资风向新闻，覆盖："
-    closing = f"完整 HTML 报告与口播稿见 dist/{date}/. 由 AI 自动生成。"
-    titles = [f"{i+1}.{item['title']}" for i, item in enumerate(curated)]
+    hooks = [_hook(item["title"]) for item in curated]
+    opening = f"今天 {n} 条 AI 投资风向："
+    closing = "。3 分钟看完。"
 
-    full = opening + " ".join(titles) + " " + closing
+    full = opening + "、".join(hooks) + closing
     if len(full) <= 250:
         return full
 
-    # Need to truncate — keep as many titles as possible
-    budget = 250 - len(opening) - len(closing) - 1  # -1 for space before closing
+    budget = 250 - len(opening) - len(closing)
     kept: list[str] = []
     used = 0
-    for t in titles:
-        # +1 for the space separator
-        need = len(t) + (1 if kept else 0)
+    for h in hooks:
+        need = len(h) + (1 if kept else 0)
         if used + need > budget:
             break
-        kept.append(t)
+        kept.append(h)
         used += need
 
     if kept:
-        return (opening + " ".join(kept) + " " + closing)[:250]
-    # Edge case: even the opening + closing doesn't fit (shouldn't happen)
+        return (opening + "、".join(kept) + closing)[:250]
     return (opening + closing)[:250]
 
 
 def _build_tags(curated: list[dict]) -> str:
     """
     Build a comma-separated tag string.
-    Base tags + dynamic tags from tickers (mapped names).
-    B站 rules: each tag ≤ 20 chars, no special chars, total ≤ 12 tags.
+    Hot evergreen tags + day-specific company tags. Caps at 12.
+    Deliberately omits "AI晨读" — channel should not feel branded/bot.
     """
-    base_tags = ["AI", "投资", "科技", "日更", "AI晨读", "财经"]
+    # Evergreen high-volume search terms in B站 财经/科技 区
+    base_tags = ["AI", "投资", "科技", "日更", "财经", "大模型", "ChatGPT", "OpenAI", "英伟达", "A股"]
     dynamic: list[str] = []
     seen: set[str] = set(base_tags)
 
@@ -152,9 +165,7 @@ def _build_tags(curated: list[dict]) -> str:
             break
 
     all_tags = base_tags + dynamic
-    # Enforce totals
-    all_tags = all_tags[:12]
-    return ",".join(all_tags)
+    return ",".join(all_tags[:12])
 
 
 def _build_metadata(curated: list[dict], date: str, episode: int) -> dict:
@@ -169,8 +180,7 @@ def _build_metadata(curated: list[dict], date: str, episode: int) -> dict:
     day = parts[2].lstrip("0")
     n = len(curated)
 
-    companies = _extract_company_names(curated)
-    title = _build_title(companies, month, day, n)
+    title = _build_title(curated, month, day)
     desc = _build_desc(curated, date)
     tag = _build_tags(curated)
 
@@ -180,7 +190,7 @@ def _build_metadata(curated: list[dict], date: str, episode: int) -> dict:
         "tag": tag,
         "tid": 188,       # 科技 > 数码
         "copyright": 1,   # 自制
-        "cover": None,    # auto from video frame
+        "cover": None,    # filled in by run() if frames/toc.png exists
     }
 
 
@@ -202,6 +212,12 @@ def run(
     """
     curated: list[dict] = json.loads(curated_path.read_text(encoding="utf-8"))
     meta = _build_metadata(curated, date, episode)
+
+    # Use the TOC frame as cover if available — it's a clean "目录 + 大标题"
+    # composition, much better than a random mid-video frame.
+    toc_cover = video_path.parent / "frames" / "toc.png"
+    if toc_cover.exists():
+        meta["cover"] = str(toc_cover)
 
     # Write publish.json alongside the video for inspection
     publish_json = video_path.parent / "publish.json"
@@ -238,6 +254,8 @@ def run(
         "--tid", str(meta["tid"]),
         "--copyright", str(meta["copyright"]),
     ]
+    if meta.get("cover"):
+        cmd += ["--cover", meta["cover"]]
 
     result = subprocess.run(cmd, check=True, capture_output=False)
     return meta
