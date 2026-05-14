@@ -212,12 +212,17 @@ def run(
     if dry_run:
         return meta
 
-    # Locate biliup.exe
-    biliup_exe = shutil.which("biliup") or shutil.which("biliup.exe")
+    # Locate biliup.exe — first try venv's Scripts dir (where install puts it),
+    # then fall back to system PATH.
+    import sys as _sys
+    venv_biliup = Path(_sys.executable).parent / ("biliup.exe" if _sys.platform == "win32" else "biliup")
+    if venv_biliup.exists():
+        biliup_exe = str(venv_biliup)
+    else:
+        biliup_exe = shutil.which("biliup") or shutil.which("biliup.exe")
     if not biliup_exe:
         raise RuntimeError(
-            "biliup not found on PATH. "
-            "Place biliup.exe in .venv/Scripts/ and activate the venv."
+            "biliup not found. Place biliup.exe in .venv/Scripts/ or on PATH."
         )
 
     # Build the biliup upload command.
