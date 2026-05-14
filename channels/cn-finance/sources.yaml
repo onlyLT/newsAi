@@ -1,62 +1,26 @@
 sources:
-  - id: cls_news
-    name: 财联社
+  - id: xinhua_finance
+    name: 新华网财经
     type: rss
-    url: https://www.cls.cn/feed/news
+    url: http://www.xinhuanet.com/finance/news_finance.xml
     lang: zh
 
-  - id: yicai
-    name: 第一财经
+  - id: chinanews_finance
+    name: 中新网财经
     type: rss
-    url: https://www.yicai.com/feed/index.xml
-    lang: zh
-
-  - id: 21jingji
-    name: 21世纪经济报道
-    type: rss
-    url: https://www.21jingji.com/rss/news.xml
-    lang: zh
-
-  - id: sina_finance
-    name: 新浪财经
-    type: rss
-    url: https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=2516&num=20&versionNumber=1.2.4
+    url: https://www.chinanews.com.cn/rss/finance.xml
     lang: zh
 
   - id: kr36_finance
-    name: 36氪财经
+    name: 36氪
     type: rss
     url: https://36kr.com/feed-newsflash
     lang: zh
-    filter_keywords: [财经, A股, 央行, 货币政策, 财政, 经济, 股市, 楼市, 房贷, 利率, 减税, IPO, 上市]
+    filter_keywords: [财经, A股, 央行, 货币政策, 财政, 经济, 股市, 楼市, 房贷, 利率, 减税, IPO, 上市, 证监会, 工信部, 国务院, 财政部]
 
-  - id: caijing
-    name: 财经网
+  - id: chinanews_society
+    name: 中新网要闻
     type: rss
-    url: https://www.caijing.com.cn/rss/news.xml
+    url: https://www.chinanews.com.cn/rss/importnews.xml
     lang: zh
-
-  - id: huxiu_finance
-    name: 虎嗅财经
-    type: rss
-    url: https://www.huxiu.com/rss/0.xml
-    lang: zh
-    filter_keywords: [财经, A股, 央行, 财政, 经济]
-
-  - id: wallstreetcn
-    name: 华尔街见闻
-    type: rss
-    url: https://wallstreetcn.com/feed
-    lang: zh
-
-  - id: jrj
-    name: 金融界
-    type: rss
-    url: http://rss.jrj.com.cn/rss/xwzx_yw.xml
-    lang: zh
-
-  - id: stcn
-    name: 证券时报
-    type: rss
-    url: https://www.stcn.com/api/feed/news.xml
-    lang: zh
+    filter_keywords: [经济, 财政, 金融, 央行, 国务院, A股, 楼市, 贷款, 减税, 物价, 就业, 房地产]
