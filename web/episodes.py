@@ -221,7 +221,7 @@ def build_episode_detail(day: Path) -> dict:
         # Video
         "has_video": (day / "video.mp4").exists(),
         "has_html": (day / "index.html").exists(),
-        "has_cover": (day / "frames" / "toc.png").exists(),
+        "has_cover": (day / "cover.png").exists() or (day / "frames" / "toc.png").exists(),
         "video_duration_s": video_info.get("duration_s"),
         "video_size_kb": video_info.get("size_kb"),
         # Curated items

@@ -142,7 +142,7 @@ def _episode_summary(day: Path) -> dict:
         "bvid": _bvid(day),
         "has_video": (day / "video.mp4").exists(),
         "has_html": (day / "index.html").exists(),
-        "has_cover": (day / "frames" / "toc.png").exists(),
+        "has_cover": (day / "cover.png").exists() or (day / "frames" / "toc.png").exists(),
     }
 
 
@@ -448,9 +448,12 @@ async def publish_preview(date: str, channel: Optional[str] = Query(default=None
     except Exception:
         meta = _build_metadata(curated, date, episode)
 
-    # Fill cover if available
+    # Fill cover if available — prefer per-day composed cover.png over toc.png
+    composed_cover = day / "cover.png"
     toc_cover = day / "frames" / "toc.png"
-    if toc_cover.exists():
+    if composed_cover.exists():
+        meta["cover"] = f"/dist/{channel_id}/{date}/cover.png"
+    elif toc_cover.exists():
         meta["cover"] = f"/dist/{channel_id}/{date}/frames/toc.png"
 
     # Check existing publish.json for bvid
@@ -507,7 +510,7 @@ async def do_publish(date: str, body: dict = Body(...),
     if cover and not cover.startswith("/dist/"):
         cmd += ["--cover", cover]
     elif cover and cover.startswith("/dist/"):
-        rel = cover.lstrip("/dist/")
+        rel = cover.removeprefix("/dist/")
         abs_cover = DIST_DIR / rel
         if abs_cover.exists():
             cmd += ["--cover", str(abs_cover)]
